@@ -1,0 +1,8 @@
+#结果输出目录
+OutputDir=Output/
+
+#====================FirstCutCfg===========
+#第一刀找点方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
+FirstcutMethod=2
+#Firstcut的起点
+FirstcutFirstPoint=0
