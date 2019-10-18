@@ -12,12 +12,14 @@ void MeshCut::SetCondition(const std::vector<int> &lmk, const std::vector<int> &
 	this->initseam = initseam;
 }
 
-void MeshCut::CalcCut()
+void MeshCut::Connect()
 {
 	//如果初始没有割缝，则直接用Kruskal算法算割缝
 	if (initseam.size() == 0)
 	{
+		//求lmk数组中两两点的距离，获得完全图
 		Algorithm::Dijkstra(MCache, lmk);
+		//之后根据求出的完全图
 		Algorithm::Kruskal(MCache, lmk, cutVertex, cutEdge);
 	}
 	else

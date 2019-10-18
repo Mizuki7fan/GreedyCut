@@ -15,7 +15,7 @@ public:
 	//设置landmark点和已有的割缝点
 	void SetCondition(const std::vector<int>& lmk,const std::vector<int>& initseam=std::vector<int>());
 	//计算网格的割缝
-	void CalcCut();
+	void Connect();
 	//Cut_to_Seam
 	void MakeSeam();
 	//返回切开后的网格

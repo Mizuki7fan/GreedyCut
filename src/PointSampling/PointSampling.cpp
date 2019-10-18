@@ -41,10 +41,10 @@ std::vector<int> PointSampling::ComputeSamples()
 	else if (method_id == 2)
 	{
 		//对于slectpts的点集，遍历这些点到网格上所有的点的距离
+		Algorithm::Dijkstra_all(MCache, selectpts[0]);
 		for (int i = 0; i < n_samples - 1; i++)
 		{
-			for (auto a : selectpts)
-				Algorithm::Dijkstra_all(MCache, a);
+			Algorithm::Dijkstra_all(MCache, selectpts[selectpts.size()-1]);
 			int farthestid = 0;
 			double dist = 0.0;
 			for (int j = 0; j < MCache.n_vertices; j++)

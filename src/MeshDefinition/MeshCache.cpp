@@ -58,37 +58,3 @@ void MeshCache::updataCapacity()
 	}
 	std::cout << "capacity : " <<capacity<< std::endl;
 }
-/*
-void MeshCache::UpdateNeighbourInfo(int k)
-{
-	Neighbour.resize(n_vertices, std::vector<std::vector<int>>(k + 1, std::vector<int>()));
-	std::vector<std::vector<int>> v_v_dis(n_vertices, std::vector<int>(n_vertices, -1));
-#pragma omp parallel for num_threads(16)
-	for (int i = 0; i < n_vertices; i++)
-	{
-		Neighbour[i][0].push_back(i);
-		Neighbour[i][1] = vv[i];
-		v_v_dis[i][i] = 0;
-		for (auto a : vv[i])
-			v_v_dis[i][a] = 1;
-	}
-	for (int u = 2; u <= k; u++)
-	{
-#pragma omp parallel for num_threads(16)
-		for (int i = 0; i < n_vertices; i++)
-		{
-			for (auto a : Neighbour[i][u - 1])
-			{
-				for (auto b : vv[a])
-				{
-					if (v_v_dis[i][b]==-1)
-					{
-						v_v_dis[i][b] = u;
-						Neighbour[i][u].push_back(b);
-					}
-				}
-			}
-		}
-	}
-}
-*/

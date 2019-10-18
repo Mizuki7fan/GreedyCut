@@ -5,7 +5,7 @@ Option::Option(std::string s,std::string ModelPath)
 {
 	//获取网格名称
 	ModelName = ModelPath.substr(ModelPath.find_last_of('\\') + 1, ModelPath.length());
-
+	
 	std::ifstream input(s);
 	std::string line,key,value;
 	int position;
@@ -19,10 +19,10 @@ Option::Option(std::string s,std::string ModelPath)
 		key = line.substr(0, position);
 		value = line.substr(position + 1, line.length());
 		if (key == "OutputDir")
-			OutputDir = value + ModelName;
-		else if (key == "FirstcutMethod")
-			FirstcutMethod = std::stoi(value);
-		else if (key == "FirstcutFirstPoint")
-			FirstcutFirstPoint = std::stoi(value);
+			OutputDir = value + ModelName.substr(0,ModelName.length()-4);
+		else if (key == "SampleMethod")
+			SampleMethod = std::stoi(value);
+		else if (key == "SampleFirstPoint")
+			SampleFirstPoint = std::stoi(value);
 	}
 }

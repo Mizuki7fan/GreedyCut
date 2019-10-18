@@ -1,8 +1,12 @@
 #结果输出目录
-OutputDir=Output/
+OutputDir=../Output/
 
-#====================FirstCutCfg===========
-#第一刀找点方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
-FirstcutMethod=2
-#Firstcut的起点
-FirstcutFirstPoint=0
+#====================PointSamplingCfg===========
+#采样方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
+SampleMethod=2
+#采样初始点的起点
+SampleFirstPoint=0
+
+#====================MeshutCfg===========
+#是否输出找到的割缝和点，0表示不输出，1表示输出
+MeshcutOutput=1

@@ -44,6 +44,8 @@ file (GLOB SRCFILES
     src/Auxiliary/Algorithm.cpp
     src/PointSampling/PointSampling.cpp
     src/MeshCut/MeshCut.cpp
+    src/KPNewton/KPNewton.cpp
+    src/PardisoSolver/PardisoSolver.cpp
 )
 
 add_executable(GreedyCut ${SRCFILES})

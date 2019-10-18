@@ -10,8 +10,7 @@ Algorithm::~Algorithm()
 
 void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
 {
-	time_t st = clock();
-#pragma omp parallel for
+//#pragma omp parallel for
 	for (int i = 0; i < lmk.size(); i++)
 	{
 		std::vector<int> is_lmk(MC.n_vertices, 0);
@@ -66,9 +65,6 @@ void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
 			}
 		}
 	}
-
-	time_t et = clock();
-	std::cout << et - st << std::endl;
 }
 
 void Algorithm::Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<int>& cutvertex, std::vector<int>& cutedge)
@@ -272,7 +268,7 @@ void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
 		que.pop();
 		if (is_visited[tmp.id])
 			continue;
-		is_visited[tmp.id];
+		is_visited[tmp.id]=1;
 		for (int u = 0; u < MC.vv[tmp.id].size(); u++)
 		{
 			int vid = MC.vv[tmp.id][u];

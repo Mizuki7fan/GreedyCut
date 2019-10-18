@@ -4,6 +4,7 @@
 #include "MeshDefinition/MeshCache.h"
 #include "PointSampling/PointSampling.h"
 #include "MeshCut/MeshCut.h"
+#include "KPNewton/KPNewton.h"
 //MinGW和MSVC都需要包含这两个
 #ifdef _WIN64
 #include <direct.h>
@@ -49,35 +50,67 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 	MeshCache MC(mesh);
-	//std::vector<int> test_lmk = { 1,567,345,8762,10001,55,6,5506,2365,6988,2359,11110,1234 };
-	//Algorithm::Dijkstra(MC, test_lmk);
-	//MC.updataCapacity();
-	//return 1;
 	std::cout << "Find Cut 1" << std::endl;
 	//生成第一条割缝，根据Option中的值来确定
 	//三种最远点采样的方法
-	switch (opt.FirstcutFirstPoint)
+	switch (opt.SampleMethod)
 	{
+	case 0:
+		std::cout << "SampleMethod:ReadDistance" << std::endl;
+		break;
 	case 1:
-		std::cout << "FirstcutMethod:ReadDistance" << std::endl;
+		std::cout << "SampleMethod:GeodesicDistance" << std::endl;
+		break;
 	case 2:
-		std::cout << "FirstcutMethod:GeodesicDistance" << std::endl;
-	case 3:
-		std::cout << "FirstcutMethod:LargestEdgeLength" << std::endl;
+		std::cout << "SampleMethod:LargestEdgeLength" << std::endl;
+		break;
 	default:
-		std::cerr << "FirstcutMethod:Wrong" << std::endl;
+		std::cerr << "SampleMethod:Wrong" << std::endl;
 		return -1;
 		break;
 	}
-	PointSampling ps(MC, 0, 10, opt.FirstcutMethod);
+#ifdef _DEBUG
+	MC.updataCapacity();
+#endif // DEBUG
+
+	PointSampling ps(MC, 0, 10, opt.SampleMethod);
 	std::vector<int> SamplePoints= ps.ComputeSamples();
+#ifdef _DEBUG
+	MC.updataCapacity();
+#endif // DEBUG
 	//初始的一刀
 	MeshCut MCut(mesh, MC);
 	//传入采样点
 	MCut.SetCondition(SamplePoints);
 	//算Cut
-	MCut.CalcCut();
-	//
+	MCut.Connect();
+#ifdef _DEBUG
+	MC.updataCapacity();
+#endif // DEBUG
+	MCut.MakeSeam();
+	Mesh cuted_mesh = MCut.GetCutedMesh();
+	if (opt.MeshcutOutput == 1)
+	{
+		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\initial_cut.obj");
+	}
+	std::cout << "KPNewton1" << std::endl;
+	//第一次kpnewton
+	KPNewton kpn(cuted_mesh);
+	kpn.Tutte();
+	kpn.PrepareDataFree();
+	kpn.RunFree(KPNewton::MIPS);
+	kpn.RunFree(KPNewton::AMIPS);
+	kpn.UpdateMesh();
+	kpn.ResultRect(mesh);
+	if (kpn.EnergyNan())
+	{
+		std::cerr <<"fail in KPNewton!" << std::endl;
+		return -1;
+	}
+	std::cout << "Kpnewton Finish" << std::endl;
+
+
+
 
 
 
