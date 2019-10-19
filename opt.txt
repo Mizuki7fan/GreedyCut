@@ -1,12 +1,16 @@
 #结果输出目录
 OutputDir=../Output/
 
-#====================PointSamplingCfg===========
+#==============PointSamplingCfg===========
 #采样方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
-SampleMethod=2
+SampleMethod=0
 #采样初始点的起点
 SampleFirstPoint=0
 
-#====================MeshutCfg===========
+#==============MeshutCfg===========
 #是否输出找到的割缝和点，0表示不输出，1表示输出
-MeshcutOutput=1
+MeshcutOutput=0
+
+#==============KPNewtonCfg=========
+#是否要输出KPNewton的中间结果
+KPNewtonResultOutput=0

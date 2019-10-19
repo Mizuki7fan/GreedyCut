@@ -4,6 +4,21 @@
 PointSampling::PointSampling(MeshCache& m,int FirstPoint,int n_samples,int method_id)
 	:MCache(m),n_samples(n_samples),method_id(method_id),FirstPoint(FirstPoint)
 {
+	switch (method_id)
+	{
+	case 0:
+		std::cout << "SampleMethod:ReadDistance" << std::endl;
+		break;
+	case 1:
+		std::cout << "SampleMethod:GeodesicDistance" << std::endl;
+		break;
+	case 2:
+		std::cout << "SampleMethod:LargestEdgeLength" << std::endl;
+		break;
+	default:
+		std::cerr << "SampleMethod:Wrong" << std::endl;
+		break;
+	}
 
 }
 

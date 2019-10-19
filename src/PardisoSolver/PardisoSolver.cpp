@@ -69,14 +69,14 @@ void PardisoSolver::pardiso_init()
 
 
 	/* Numbers of processors, value of OMP_NUM_THREADS */
-	var = getenv("OMP_NUM_THREADS");
-	if (var != NULL)
-		sscanf(var, "%d", &num_procs);
-	else
-		throw std::runtime_error("Set environment OMP_NUM_THREADS to 1");
+	//var = getenv("OMP_NUM_THREADS");
+	//if (var != NULL)
+	//	sscanf(var, "%d", &num_procs);
+	//else
+	//	throw std::runtime_error("Set environment OMP_NUM_THREADS to 1");
 
 	//num_procs =4;
-	iparm[2] = num_procs;
+	//iparm[2] = num_procs;
 
 	maxfct = 1;		/* Maximum number of numerical factorizations.  */
 	mnum = 1;         /* Which factorization to use. */

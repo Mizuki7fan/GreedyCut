@@ -14,8 +14,9 @@ public:
 	std::string OutputDir = "Output/";
 	int SampleMethod = 0;
 	int SampleFirstPoint = 0;
-
 	int MeshcutOutput = 1;
+	int KPNewtonOutput = 0;
+
 	double filtering_rate;
 	double trimming_rate;
 

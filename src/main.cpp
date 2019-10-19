@@ -21,6 +21,8 @@
 //主函数
 int main(int argc, char* argv[])
 {
+	time_t st = clock();
+
 #ifdef __MINGW64__
 	std::cout << "The Complier is MinGW" << std::endl;	
 	OpenMesh::IO::_OBJReader_();
@@ -53,27 +55,11 @@ int main(int argc, char* argv[])
 	std::cout << "Find Cut 1" << std::endl;
 	//生成第一条割缝，根据Option中的值来确定
 	//三种最远点采样的方法
-	switch (opt.SampleMethod)
-	{
-	case 0:
-		std::cout << "SampleMethod:ReadDistance" << std::endl;
-		break;
-	case 1:
-		std::cout << "SampleMethod:GeodesicDistance" << std::endl;
-		break;
-	case 2:
-		std::cout << "SampleMethod:LargestEdgeLength" << std::endl;
-		break;
-	default:
-		std::cerr << "SampleMethod:Wrong" << std::endl;
-		return -1;
-		break;
-	}
 #ifdef _DEBUG
 	MC.updataCapacity();
 #endif // DEBUG
 
-	PointSampling ps(MC, 0, 10, opt.SampleMethod);
+	PointSampling ps(MC, 0, 2, opt.SampleMethod);
 	std::vector<int> SamplePoints= ps.ComputeSamples();
 #ifdef _DEBUG
 	MC.updataCapacity();
@@ -90,9 +76,7 @@ int main(int argc, char* argv[])
 	MCut.MakeSeam();
 	Mesh cuted_mesh = MCut.GetCutedMesh();
 	if (opt.MeshcutOutput == 1)
-	{
 		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\initial_cut.obj");
-	}
 	std::cout << "KPNewton1" << std::endl;
 	//第一次kpnewton
 	KPNewton kpn(cuted_mesh);
@@ -107,8 +91,18 @@ int main(int argc, char* argv[])
 		std::cerr <<"fail in KPNewton!" << std::endl;
 		return -1;
 	}
+	if (opt.KPNewtonOutput==1)
+		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj");
 	std::cout << "Kpnewton Finish" << std::endl;
 
+
+
+
+
+
+
+	time_t et = clock();
+	std::cout << et - st << std::endl;
 
 
 

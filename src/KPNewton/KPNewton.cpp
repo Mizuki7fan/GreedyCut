@@ -619,7 +619,6 @@ void KPNewton::ResultRect(const Mesh& orimesh)
 		const auto& vh = mesh.vertex_handle(i);
 		mesh.point(vh) *= scale;
 	}
-	OpenMesh::IO::write_mesh(mesh, "C:\\meigyoku\\exp5\\1.obj");
 }
 
 std::vector<Mesh::VertexHandle> KPNewton::GetBoundary(void) const

@@ -19,10 +19,14 @@ Option::Option(std::string s,std::string ModelPath)
 		key = line.substr(0, position);
 		value = line.substr(position + 1, line.length());
 		if (key == "OutputDir")
-			OutputDir = value + ModelName.substr(0,ModelName.length()-4);
+			OutputDir = value + ModelName.substr(0, ModelName.length() - 4);
 		else if (key == "SampleMethod")
 			SampleMethod = std::stoi(value);
 		else if (key == "SampleFirstPoint")
 			SampleFirstPoint = std::stoi(value);
+		else if (key == "MeshcutOutput")
+			MeshcutOutput = std::stoi(value);
+		else if (key == "KPNewtonResultOutput")
+			KPNewtonOutput = std::stoi(value);
 	}
 }
