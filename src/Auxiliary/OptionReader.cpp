@@ -1,9 +1,9 @@
-#include "OptionReader.h"
+Ôªø#include "OptionReader.h"
 
 Option::Option(std::string s,std::string ModelPath)
 :ModelPath(ModelPath)
 {
-	//ªÒ»°Õ¯∏Ò√˚≥∆
+	//Ëé∑ÂèñÁΩëÊ†ºÂêçÁß∞
 	ModelName = ModelPath.substr(ModelPath.find_last_of('\\') + 1, ModelPath.length());
 	
 	std::ifstream input(s);
@@ -21,12 +21,15 @@ Option::Option(std::string s,std::string ModelPath)
 		if (key == "OutputDir")
 			OutputDir = value + ModelName.substr(0, ModelName.length() - 4);
 		else if (key == "SampleMethod")
-			SampleMethod = std::stoi(value);
+			SampleMethod = value;
 		else if (key == "SampleFirstPoint")
-			SampleFirstPoint = std::stoi(value);
+			SampleFirstPoint = value;
 		else if (key == "MeshcutOutput")
-			MeshcutOutput = std::stoi(value);
+			MeshcutOutput = value;
 		else if (key == "KPNewtonResultOutput")
-			KPNewtonOutput = std::stoi(value);
+			KPNewtonOutput = value;
+		else if (key == "VertexPriorityMetric")
+			VertexPriorityMetric = value;
+
 	}
 }

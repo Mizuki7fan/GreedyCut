@@ -5,6 +5,7 @@
 #include "PointSampling/PointSampling.h"
 #include "MeshCut/MeshCut.h"
 #include "KPNewton/KPNewton.h"
+#include "PointFinding/PointFinding.h"
 //MinGW和MSVC都需要包含这两个
 #ifdef _WIN64
 #include <direct.h>
@@ -31,9 +32,9 @@ int main(int argc, char* argv[])
 	std::cout << "The Complier is MSVC" << std::endl;
 #endif // __GNUC
 
-	//网格名称需要单独读取，为了批量化的测试
+	//网格名称需要单独读取，为了批量化的测试。
 	std::string ModelPath = argv[1];
-	//读取配置文件
+	//读取配置文件，批量化测试的配置应当相同。
 	Option opt(argv[2],ModelPath);
 	std::cout << "start processing [" << opt.ModelName << "] ......" << std::endl;
 
@@ -59,8 +60,10 @@ int main(int argc, char* argv[])
 	MC.updataCapacity();
 #endif // DEBUG
 
-	PointSampling ps(MC, 0, 2, opt.SampleMethod);
-	std::vector<int> SamplePoints= ps.ComputeSamples();
+	PointSampling ps(MC);
+	ps.Set(opt.SampleMethod,opt.SampleFirstPoint,2);//读设置
+	std::vector<int> SamplePoints;
+	ps.ComputeSamples(SamplePoints);
 #ifdef _DEBUG
 	MC.updataCapacity();
 #endif // DEBUG
@@ -75,10 +78,10 @@ int main(int argc, char* argv[])
 #endif // DEBUG
 	MCut.MakeSeam();
 	Mesh cuted_mesh = MCut.GetCutedMesh();
-	if (opt.MeshcutOutput == 1)
+	if (opt.MeshcutOutput == "Yes")
 		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\initial_cut.obj");
 	std::cout << "KPNewton1" << std::endl;
-	//第一次kpnewton
+	//第一次kpnewton,KPN的部分以后搞懂了之后可以再修改，先保持
 	KPNewton kpn(cuted_mesh);
 	kpn.Tutte();
 	kpn.PrepareDataFree();
@@ -91,10 +94,18 @@ int main(int argc, char* argv[])
 		std::cerr <<"fail in KPNewton!" << std::endl;
 		return -1;
 	}
-	if (opt.KPNewtonOutput==1)
-		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj");
+	if (opt.KPNewtonOutput=="Yes")
+		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj",OpenMesh::IO::Options::Default,10);
 	std::cout << "Kpnewton Finish" << std::endl;
+	//这一步的参数设置比较多,首先，如何正确计算扭曲能量(论文中写的和之前代码中实现的不一样
+	std::vector<std::pair<int, double>> firstcutResult;
+	PointFinding PF(mesh, cuted_mesh);
+	PF.Set(opt.VertexPriorityMetric);
+	//找点
+	PF.Find(firstcutResult);
 
+
+	
 
 
 

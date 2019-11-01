@@ -1,15 +1,17 @@
-#pragma once
+﻿#pragma once
 #include "../MeshDefinition/MeshCache.h"
 #include "../Auxiliary/Algorithm.h"
+#include <random>
 
 
 class PointSampling
 {
 public:
-	PointSampling(MeshCache & m,int FirstPoint,int n_samples,int method_id);
+	PointSampling(MeshCache & m);
 	~PointSampling(void);
+	void Set(std::string method,std::string FirstPoint,int n_samples);
 
-	std::vector<int> ComputeSamples();
+	void ComputeSamples(std::vector<int>& Result);
 
 private:
 	// Compute distance from a point to a set
@@ -19,7 +21,7 @@ private:
 
 
 	MeshCache & MCache; // const reference to the mesh
-	int method_id;//1-RealDistance 2-GeodesticDistance 3-LargestEdgeLength
+	std::string method;//1-RealDistance 2-GeodesticDistance 3-LargestEdgeLength
 	int n_samples;
 	int FirstPoint;
 

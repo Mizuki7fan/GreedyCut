@@ -1,21 +1,24 @@
-#pragma once
+ï»¿#pragma once
 #include <string>
 #include <fstream>
 
 class Option
 {
 public:
-	//¸ù¾İÍø¸ñÂ·¾¶ºÍoptionÎÄ¼şµÄÃû×ÖÀ´»ñµÃÏàÓ¦µÄÂ·¾¶Ãû×Ö
+	//æ ¹æ®ç½‘æ ¼è·¯å¾„å’Œoptionæ–‡ä»¶çš„åå­—æ¥è·å¾—ç›¸åº”çš„è·¯å¾„åå­—
 	Option(std::string,std::string);
 	
-	//Êä³öÄ¿Â¼
+	//è¾“å‡ºç›®å½•
 	std::string ModelName;
 	std::string ModelPath;
-	std::string OutputDir = "Output/";
-	int SampleMethod = 0;
-	int SampleFirstPoint = 0;
-	int MeshcutOutput = 1;
-	int KPNewtonOutput = 0;
+
+	std::string OutputDir = "../Output/";
+	std::string SampleMethod = "Dijkstra";
+	std::string SampleFirstPoint = "Random";
+	std::string MeshcutOutput = "Yes";
+	std::string KPNewtonOutput = "Yes";
+	std::string VertexPriorityMetric = "RealDis";
+
 
 	double filtering_rate;
 	double trimming_rate;

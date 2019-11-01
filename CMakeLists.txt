@@ -8,6 +8,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     add_compile_options(-std=c++11)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     message(STATUS "编译器是msvc")
+    #添加预处理器定义，/Db表示是MSVC的编译器
+    add_definitions(/D_USE_MATH_DEFINES)
 endif()
 
 SET(CMAKE_CXX_FLAGS "-O2")
@@ -46,6 +48,7 @@ file (GLOB SRCFILES
     src/MeshCut/MeshCut.cpp
     src/KPNewton/KPNewton.cpp
     src/PardisoSolver/PardisoSolver.cpp
+    src/PointFinding/PointFinding.cpp
 )
 
 add_executable(GreedyCut ${SRCFILES})

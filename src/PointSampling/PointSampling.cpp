@@ -1,24 +1,9 @@
-#include "PointSampling.h"
+ï»¿#include "PointSampling.h"
 
 
-PointSampling::PointSampling(MeshCache& m,int FirstPoint,int n_samples,int method_id)
-	:MCache(m),n_samples(n_samples),method_id(method_id),FirstPoint(FirstPoint)
+PointSampling::PointSampling(MeshCache& m)
+	:MCache(m)
 {
-	switch (method_id)
-	{
-	case 0:
-		std::cout << "SampleMethod:ReadDistance" << std::endl;
-		break;
-	case 1:
-		std::cout << "SampleMethod:GeodesicDistance" << std::endl;
-		break;
-	case 2:
-		std::cout << "SampleMethod:LargestEdgeLength" << std::endl;
-		break;
-	default:
-		std::cerr << "SampleMethod:Wrong" << std::endl;
-		break;
-	}
 
 }
 
@@ -26,20 +11,43 @@ PointSampling::~PointSampling()
 {
 }
 
-std::vector<int> PointSampling::ComputeSamples()
+void PointSampling::Set(std::string method_id, std::string FirstPoint, int n_samples)
+{
+	this->method = method_id;
+	if (method == "Dijkstra") { std::cout << "SampleMethod: Dijkstra" << std::endl; }
+	else if (method == "GeodesicDistance") {	std::cout << "SampleMethod: GeodesicDistance" << std::endl;}
+	switch (method == "RealDistance") { std::cout << "SampleMethod: RealDistance" << std::endl; }
+
+	if (FirstPoint == "Random") { 
+		std::cout << "SampleFirstPoint: Random" << std::endl; 
+		std::default_random_engine e;
+		std::uniform_int_distribution<unsigned> u(0,MCache.n_vertices);
+		this->FirstPoint = u(e);
+		std::cout << "Generate Random FirstPoint: " << this->FirstPoint << std::endl;
+	}
+	else
+	{
+		std::cout << "SampleFirstPoint: " << FirstPoint << std::endl;
+		this->FirstPoint = std::stoi(FirstPoint);
+	}
+	this->n_samples = n_samples;
+	std::cout << "SampleCount: " << this->n_samples << std::endl;
+}
+
+void PointSampling::ComputeSamples(std::vector<int>& Result)
 {
 	std::vector<int> selectpts;
 	selectpts.push_back(FirstPoint);
-	if (method_id == 0)
+	if (method == "RealDistance")
 	{
-		//ÕÒÍø¸ñÖĞÊµ¼Ê¾àÀëµ½FirstPoint×îÔ¶µÄµã
+		//æ‰¾ç½‘æ ¼ä¸­å®é™…è·ç¦»åˆ°FirstPointæœ€è¿œçš„ç‚¹
 		for (int i = 0; i < n_samples - 1; i++)
 		{
 			int farthestid = 0;
 			double dist = 0.0;
 			for (int j = 0; j < MCache.n_vertices; j++)
 			{
-				//ÕÒµ½µã¼¯selectptsËùÓĞµã×î¶Ì¾àÀë×î´óµÄµã
+				//æ‰¾åˆ°ç‚¹é›†selectptsæ‰€æœ‰ç‚¹æœ€çŸ­è·ç¦»æœ€å¤§çš„ç‚¹
 				double disttemp = PointSetRealDistance(j, selectpts);
 				if (disttemp > dist)
 				{
@@ -50,12 +58,12 @@ std::vector<int> PointSampling::ComputeSamples()
 			selectpts.push_back(farthestid);
 		}
 	}
-	//²âµØ¾àÀë
+	//æµ‹åœ°è·ç¦»
 //	else if (method_id==1)
-	//Á½µã¼äµÄÂ·¾¶
-	else if (method_id == 2)
+	//ä¸¤ç‚¹é—´çš„è·¯å¾„
+	else if (method == "Dijkstra")
 	{
-		//¶ÔÓÚslectptsµÄµã¼¯£¬±éÀúÕâĞ©µãµ½Íø¸ñÉÏËùÓĞµÄµãµÄ¾àÀë
+		//å¯¹äºslectptsçš„ç‚¹é›†ï¼Œéå†è¿™äº›ç‚¹åˆ°ç½‘æ ¼ä¸Šæ‰€æœ‰çš„ç‚¹çš„è·ç¦»
 		Algorithm::Dijkstra_all(MCache, selectpts[0]);
 		for (int i = 0; i < n_samples - 1; i++)
 		{
@@ -64,7 +72,7 @@ std::vector<int> PointSampling::ComputeSamples()
 			double dist = 0.0;
 			for (int j = 0; j < MCache.n_vertices; j++)
 			{
-				//ÕÒµ½µã¼¯selectptsËùÓĞµã×î¶Ì¾àÀë×î´óµÄµã
+				//æ‰¾åˆ°ç‚¹é›†selectptsæ‰€æœ‰ç‚¹æœ€çŸ­è·ç¦»æœ€å¤§çš„ç‚¹
 				double disttemp = PointSetPathLength(j, selectpts);
 				if (disttemp > dist)
 				{
@@ -75,10 +83,10 @@ std::vector<int> PointSampling::ComputeSamples()
 			selectpts.push_back(farthestid);
 		}
 	}
-	return selectpts;
+	Result= selectpts;
 }
 
-//ÊäÈëÒ»¸ö¼¯ºÏºÍÒ»¸öµã£¬»ñµÃÕâ¸öµãµ½Õâ¸ö¼¯ºÏËùÓĞµãµÄ×î¶ÌÂ·¾¶µÄ×î´óÖµ
+//è¾“å…¥ä¸€ä¸ªé›†åˆå’Œä¸€ä¸ªç‚¹ï¼Œè·å¾—è¿™ä¸ªç‚¹åˆ°è¿™ä¸ªé›†åˆæ‰€æœ‰ç‚¹çš„æœ€çŸ­è·¯å¾„çš„æœ€å¤§å€¼
 double PointSampling::PointSetRealDistance(const int & vid, const std::vector<int> & pointset) const
 {
 	double dist = DBL_MAX;
@@ -93,7 +101,7 @@ double PointSampling::PointSetRealDistance(const int & vid, const std::vector<in
 	return dist;
 }
 
-//ÊäÈëÒ»¸ö¼¯ºÏºÍÒ»¸öµã£¬»ñµÃÕâ¸öµãµ½Õâ¸ö¼¯ºÏËùÓĞµãµÄ×î¶ÌÂ·¾¶µÄ×î´óÖµ
+//è¾“å…¥ä¸€ä¸ªé›†åˆå’Œä¸€ä¸ªç‚¹ï¼Œè·å¾—è¿™ä¸ªç‚¹åˆ°è¿™ä¸ªé›†åˆæ‰€æœ‰ç‚¹çš„æœ€çŸ­è·¯å¾„çš„æœ€å¤§å€¼
 double PointSampling::PointSetPathLength(const int& vid, const std::vector<int>& pointset) const
 {
 	double dist = DBL_MAX;
