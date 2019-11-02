@@ -18,6 +18,8 @@ public:
 	std::string MeshcutOutput = "Yes";
 	std::string KPNewtonOutput = "Yes";
 	std::string VertexPriorityMetric = "RealDis";
+	int Dn = 10;
+	std::string BanAreaMethod = "NonConnect";
 
 
 	double filtering_rate;

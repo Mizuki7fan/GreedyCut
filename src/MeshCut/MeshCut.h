@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include "..//MeshDefinition/MeshDefinition.h"
 #include "..//MeshDefinition/MeshCache.h"
@@ -10,15 +10,17 @@
 class MeshCut
 {
 public:
-	//Íø¸ñÇĞ¸îÀà£¬ÊäÈëÊÇÔ­Ê¼Íø¸ñÒÔ¼°ÆäCache
+	//ç½‘æ ¼åˆ‡å‰²ç±»ï¼Œè¾“å…¥æ˜¯åŸå§‹ç½‘æ ¼ä»¥åŠå…¶Cache
 	MeshCut(Mesh& mesh, MeshCache& MCache);
-	//ÉèÖÃlandmarkµãºÍÒÑÓĞµÄ¸î·ìµã
+	//è®¾ç½®landmarkç‚¹å’Œå·²æœ‰çš„å‰²ç¼ç‚¹
 	void SetCondition(const std::vector<int>& lmk,const std::vector<int>& initseam=std::vector<int>());
-	//¼ÆËãÍø¸ñµÄ¸î·ì
+	void SetBanCondition(const std::vector<int>& banV, const std::vector<int>& banE, const std::string BanMethod);
+	void CalcBanArea(int Dn);
+	//è®¡ç®—ç½‘æ ¼çš„å‰²ç¼
 	void Connect();
 	//Cut_to_Seam
 	void MakeSeam();
-	//·µ»ØÇĞ¿ªºóµÄÍø¸ñ
+	//è¿”å›åˆ‡å¼€åçš„ç½‘æ ¼
 	Mesh GetCutedMesh() const { return cuted_mesh; };
 	std::vector<int>& GetCutvertex() { return cutVertex; }
 	std::vector<int>& GetCutEdge() { return cutEdge; }

@@ -30,6 +30,10 @@ Option::Option(std::string s,std::string ModelPath)
 			KPNewtonOutput = value;
 		else if (key == "VertexPriorityMetric")
 			VertexPriorityMetric = value;
+		else if (key == "Dn")
+			Dn = std::stoi(value);
+		else if (key == "BanAreaMethod")
+			BanAreaMethod = value;
 
 	}
 }

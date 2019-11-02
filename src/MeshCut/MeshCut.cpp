@@ -1,4 +1,4 @@
-#include "MeshCut.h"
+﻿#include "MeshCut.h"
 #include <string>
 
 MeshCut::MeshCut(Mesh &mesh, MeshCache &MCache) : 
@@ -10,6 +10,30 @@ void MeshCut::SetCondition(const std::vector<int> &lmk, const std::vector<int> &
 {
 	this->lmk = lmk;
 	this->initseam = initseam;
+}
+
+void MeshCut::SetBanCondition(const std::vector<int>& banV, const std::vector<int>& banE, const std::string BanMethod)
+{
+	//设置Ban选的相关条件,根据BanMethod进行设置
+	if (BanMethod == "NonConnect")
+	{
+		//不进行连接，直接将所有点作为输入
+		std::set<int> ban;
+		for (auto a : banV)
+			ban.insert(a);
+		for (auto a : banE)
+			ban.insert(a);
+		for (auto a : ban)
+			ban_vertex.push_back(a);
+	}
+	else if (BanMethod == "Connect")
+	{
+		//将输入的点和边连起来得到ban_vertex;
+	}
+}
+
+void MeshCut::CalcBanArea(int Dn)
+{
 }
 
 void MeshCut::Connect()

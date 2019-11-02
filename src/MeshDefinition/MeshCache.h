@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "MeshDefinition.h"
 #include <iostream>
 #include <queue>
@@ -8,18 +8,18 @@ class MeshCache
 public:
 	MeshCache(Mesh& mesh);
 	~MeshCache();
-	//´æµãµÄone-ring 
+	//å­˜ç‚¹çš„one-ring 
 	std::vector<std::vector<int>> vv;
-	//´æµãµÄÁÚ±ß
+	//å­˜ç‚¹çš„é‚»è¾¹
 	std::vector<std::vector<int>> ve;
-	//Á½µãÖ®¼äµÄ±ßid
+	//ä¸¤ç‚¹ä¹‹é—´çš„è¾¹id
 	std::vector<std::map<int , int>> vve;
-	//±ß³¤
+	//è¾¹é•¿
 	std::vector<double> el;
-	//±ßµÄÁ½¸ö¶¥µã
+	//è¾¹çš„ä¸¤ä¸ªé¡¶ç‚¹
 	std::vector<std::vector<int>> ev;
 	
-	//ÁÚÓò
+	//é‚»åŸŸ
 	std::vector<std::vector<std::vector<int>>> Neighbour;
 	std::vector<std::priority_queue<node>> dijkstra_cache;
 	std::vector<std::vector<int>> dijkstra_isvisited;
@@ -29,9 +29,10 @@ public:
 	
 	int n_vertices;
 	int n_edges;
+	double avg_el;
 
-	//¸¨ÖúÓÃ
-	//¼ÇÂ¼ÒÑ¾­»º´æÁË¶àÉÙÊı¾İ
+	//è¾…åŠ©ç”¨
+	//è®°å½•å·²ç»ç¼“å­˜äº†å¤šå°‘æ•°æ®
 	int capacity;
 
 	void updataCapacity();

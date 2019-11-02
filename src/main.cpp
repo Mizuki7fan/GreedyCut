@@ -78,6 +78,7 @@ int main(int argc, char* argv[])
 #endif // DEBUG
 	MCut.MakeSeam();
 	Mesh cuted_mesh = MCut.GetCutedMesh();
+
 	if (opt.MeshcutOutput == "Yes")
 		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\initial_cut.obj");
 	std::cout << "KPNewton1" << std::endl;
@@ -97,19 +98,19 @@ int main(int argc, char* argv[])
 	if (opt.KPNewtonOutput=="Yes")
 		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj",OpenMesh::IO::Options::Default,10);
 	std::cout << "Kpnewton Finish" << std::endl;
-	//这一步的参数设置比较多,首先，如何正确计算扭曲能量(论文中写的和之前代码中实现的不一样
-	std::vector<std::pair<int, double>> firstcutResult;
-	PointFinding PF(mesh, cuted_mesh);
+
+	std::vector<int> firstcutResult;
+	PointFinding PF(mesh, cuted_mesh,MC);
 	PF.Set(opt.VertexPriorityMetric);
-	//找点
-	PF.Find(firstcutResult);
+	//找局部最大值点，然后求他们的禁止区域
+	PF.FindLocalMaximizer(firstcutResult);
 
-
-	
-
-
-
-
+	//找禁止区域，然后获得第二条Cut
+	MeshCut Mcut2(mesh, MC);
+	//求要被ban的点
+	Mcut2.SetBanCondition(firstcutResult, MCut.GetCutEdge(),opt.BanAreaMethod);
+	//求被ban的区域，
+	Mcut2.CalcBanArea(opt.Dn);
 
 
 	time_t et = clock();

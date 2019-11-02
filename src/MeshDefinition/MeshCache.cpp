@@ -1,6 +1,6 @@
-#include "MeshCache.h"
+ï»¿#include "MeshCache.h"
 
-//¹¹ÔìMeshCacheÀà
+//æž„é€ MeshCacheç±»
 MeshCache::MeshCache(Mesh& mesh)
 {	
 	n_vertices = mesh.n_vertices();
@@ -34,13 +34,16 @@ MeshCache::MeshCache(Mesh& mesh)
 	}
 	el.resize(n_edges);
 	ev.resize(n_edges, std::vector<int>(2));
+	avg_el = 0;
 	for (const auto& e : mesh.edges())
 	{
 		Mesh::HalfedgeHandle he = mesh.halfedge_handle(e, 0);
 		ev[e.idx()][0] = mesh.to_vertex_handle(he).idx();
 		ev[e.idx()][1] = mesh.from_vertex_handle(he).idx();
 		el[e.idx()] = mesh.calc_edge_length(e);
+		avg_el += el[e.idx()];
 	}
+	avg_el /= n_vertices;
 }
 
 MeshCache::~MeshCache()
