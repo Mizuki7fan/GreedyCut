@@ -18,8 +18,12 @@ struct node
 {
 	int id;
 	double dis;
-	node(int id, double d) { this->id = id; this->dis = d; }
-	bool operator< (const node& rhs) const { return dis > rhs.dis; }
+	node(int id, double d)
+	{
+		this->id = id;
+		this->dis = d;
+	}
+	bool operator<(const node &rhs) const { return dis > rhs.dis; }
 };
 struct PathInfo
 {
@@ -32,7 +36,7 @@ struct PathInfo
 		e_p = b;
 		length = c;
 	}
-	bool operator < (const PathInfo& rhs) const
+	bool operator<(const PathInfo &rhs) const
 	{
 		return length > rhs.length;
 	}
@@ -41,6 +45,5 @@ struct PathInfo
 class MeshTools
 {
 public:
-	static double Area(const Mesh& mesh);
-
+	static double Area(const Mesh &mesh);
 };

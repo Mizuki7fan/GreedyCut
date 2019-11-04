@@ -1,12 +1,10 @@
 #include "PardisoSolver.h"
 
-//#define PLOTS_PARDISO 
+//#define PLOTS_PARDISO
 
 PardisoSolver::PardisoSolver()
 {
-
 }
-
 
 PardisoSolver::~PardisoSolver()
 {
@@ -23,12 +21,11 @@ PardisoSolver::~PardisoSolver()
 	}*/
 	//ia.clear(); ja.clear();
 
-	phase = -1;                 /* Release internal memory. */
+	phase = -1; /* Release internal memory. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-		&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
-		iparm, &msglvl, &ddum, &ddum, &error);
-
+			&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
+			iparm, &msglvl, &ddum, &ddum, &error);
 }
 
 void PardisoSolver::pardiso_init()
@@ -45,14 +42,13 @@ void PardisoSolver::pardiso_init()
 		pt[i] = 0;
 	}
 
-
 	//printf("Variable number : %d\n", num);
 	result.clear();
 	result.resize(num, 0);
 
 	nrhs = 1;
 	error = 0;
-	solver = 0;/* use sparse direct solver */
+	solver = 0; /* use sparse direct solver */
 	//pardisoinit(pt, &mtype, &solver, iparm, dparm, &error);
 	pardisoinit(pt, &mtype, iparm);
 	//if (error != 0)
@@ -67,7 +63,6 @@ void PardisoSolver::pardiso_init()
 	// else
 	//   printf("[PARDISO]: License check was successful ... \n");
 
-
 	/* Numbers of processors, value of OMP_NUM_THREADS */
 	//var = getenv("OMP_NUM_THREADS");
 	//if (var != NULL)
@@ -78,16 +73,18 @@ void PardisoSolver::pardiso_init()
 	//num_procs =4;
 	//iparm[2] = num_procs;
 
-	maxfct = 1;		/* Maximum number of numerical factorizations.  */
-	mnum = 1;         /* Which factorization to use. */
+	maxfct = 1; /* Maximum number of numerical factorizations.  */
+	mnum = 1;   /* Which factorization to use. */
 
-	msglvl = 0;         /* Print statistical information  */
-	error = 0;         /* Initialize error flag */
+	msglvl = 0; /* Print statistical information  */
+	error = 0;  /* Initialize error flag */
 
-	for (i = 0; i < num + 1; i++) {
+	for (i = 0; i < num + 1; i++)
+	{
 		ia[i] += 1;
 	}
-	for (i = 0; i < nnz; i++) {
+	for (i = 0; i < nnz; i++)
+	{
 		ja[i] += 1;
 	}
 
@@ -102,10 +99,11 @@ void PardisoSolver::pardiso_init()
 	phase = 11;
 	//cout << "err" << endl;
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-		iparm, &msglvl, &ddum, &ddum, &error);
+			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+			iparm, &msglvl, &ddum, &ddum, &error);
 	//cout << "fuck";
-	if (error != 0) {
+	if (error != 0)
+	{
 		printf("\nERROR during symbolic factorization: %d", error);
 		exit(1);
 	}
@@ -121,9 +119,8 @@ bool PardisoSolver::factorize()
 	//  iparm[32] = 1; /* compute determinant */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-		iparm, &msglvl, &ddum, &ddum, &error);
-
+			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+			iparm, &msglvl, &ddum, &ddum, &error);
 
 #ifdef PLOTS_PARDISO
 	printf("\nFactorization completed ... ");
@@ -131,10 +128,8 @@ bool PardisoSolver::factorize()
 	return (error == 0);
 }
 
-
 void PardisoSolver::pardiso_solver()
 {
-
 
 #ifdef PLOTS_PARDISO
 	/* -------------------------------------------------------------------- */
@@ -145,7 +140,8 @@ void PardisoSolver::pardiso_solver()
 	/* -------------------------------------------------------------------- */
 
 	pardiso_chkvec(&numRows, &nrhs, rhs.data(), &error);
-	if (error != 0) {
+	if (error != 0)
+	{
 		printf("\nERROR  in right hand side: %d", error);
 		exit(1);
 	}
@@ -157,7 +153,8 @@ void PardisoSolver::pardiso_solver()
 	/* -------------------------------------------------------------------- */
 
 	pardiso_printstats(&mtype, &numRows, a.data(), ia.data(), ja.data(), &nrhs, rhs.data(), &error);
-	if (error != 0) {
+	if (error != 0)
+	{
 		printf("\nERROR right hand side: %d", error);
 		exit(1);
 	}
@@ -168,16 +165,17 @@ void PardisoSolver::pardiso_solver()
 	/* -------------------------------------------------------------------- */
 	phase = 33;
 
-	iparm[7] = 1;       /* Max numbers of iterative refinement steps. */
+	iparm[7] = 1; /* Max numbers of iterative refinement steps. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-		iparm, &msglvl, rhs.data(), result.data(), &error);
+			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+			iparm, &msglvl, rhs.data(), result.data(), &error);
 
 #ifdef PLOTS_PARDISO
 	printf("\nSolve completed ... ");
 	printf("\nThe solution of the system is: ");
-	for (i = 0; i < numRows; i++) {
+	for (i = 0; i < numRows; i++)
+	{
 		printf("\n x [%d] = % f", i, result.data()[i]);
 	}
 	printf("\n\n");
@@ -186,9 +184,9 @@ void PardisoSolver::pardiso_solver()
 
 void PardisoSolver::free_numerical_factorization_memory()
 {
-	phase = 0;                 /* Release internal memory. */
+	phase = 0; /* Release internal memory. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-		&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
-		iparm, &msglvl, &ddum, &ddum, &error);
+			&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
+			iparm, &msglvl, &ddum, &ddum, &error);
 }

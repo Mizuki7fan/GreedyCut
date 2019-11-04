@@ -8,9 +8,9 @@ Algorithm::~Algorithm()
 {
 }
 
-void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
+void Algorithm::Dijkstra(MeshCache &MC, std::vector<int> &lmk)
 {
-//#pragma omp parallel for
+#pragma omp parallel for
 	for (int i = 0; i < lmk.size(); i++)
 	{
 		std::vector<int> is_lmk(MC.n_vertices, 0);
@@ -18,10 +18,10 @@ void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
 			is_lmk[lmk[i]] = 1;
 		int count = lmk.size();
 		int s_p = lmk[i];
-		std::vector<int>& is_visited = MC.dijkstra_isvisited[s_p];
-		std::vector<double>& distance = MC.V_D[s_p];
-		std::priority_queue<node>& que = MC.dijkstra_cache[s_p];
-		std::vector<int>& v_p = MC.V_VP[s_p];
+		std::vector<int> &is_visited = MC.dijkstra_isvisited[s_p];
+		std::vector<double> &distance = MC.V_D[s_p];
+		std::priority_queue<node> &que = MC.dijkstra_cache[s_p];
+		std::vector<int> &v_p = MC.V_VP[s_p];
 		if (is_visited.size() == 0)
 		{
 			is_visited.resize(MC.n_vertices, 0);
@@ -67,7 +67,7 @@ void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
 	}
 }
 
-void Algorithm::Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<int>& cutvertex, std::vector<int>& cutedge)
+void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk, std::vector<int> &cutvertex, std::vector<int> &cutedge)
 {
 	int nv = lmk.size();
 	std::vector<int> spanning_tree_current(nv);
@@ -102,7 +102,7 @@ void Algorithm::Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<in
 		if (m_id < n_id)
 			std::swap(m_id, n_id);
 		if (m_id != n_id)
-		{//根据两个点找中间的边
+		{ //根据两个点找中间的边
 			std::vector<int> path;
 			Algorithm::FindPath(MCache.V_VP[tmp.s_p], tmp.e_p, path);
 			vertex.insert(path[0]);
@@ -130,7 +130,7 @@ void Algorithm::Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<in
 		cutvertex.push_back(a);
 }
 
-void Algorithm::FindPath(std::vector<int>& v_p, int e_p, std::vector<int>& path)
+void Algorithm::FindPath(std::vector<int> &v_p, int e_p, std::vector<int> &path)
 {
 	path.clear();
 	path.push_back(e_p);
@@ -141,9 +141,9 @@ void Algorithm::FindPath(std::vector<int>& v_p, int e_p, std::vector<int>& path)
 	} while (e_p != v_p[e_p]);
 }
 
-void Algorithm::Dijkstra_with_restrict(MeshCache& MCache, int s_p, std::vector<double>& weight, std::vector<int>&v_p, std::vector<double>& d)
+void Algorithm::Dijkstra_with_restrict(MeshCache &MCache, int s_p, std::vector<double> &weight, std::vector<int> &v_p, std::vector<double> &d)
 {
-	double total_length = MCache.avg_el*MCache.n_edges;
+	double total_length = MCache.avg_el * MCache.n_edges;
 	std::vector<int> is_visited(MCache.n_vertices, 0);
 	d[s_p] = 0;
 	is_visited[s_p] = 0;
@@ -171,7 +171,7 @@ void Algorithm::Dijkstra_with_restrict(MeshCache& MCache, int s_p, std::vector<d
 	}
 }
 
-void Algorithm::Dijkstra_with_nearest2(MeshCache& MC, int s_p, std::vector<int>& is_target, std::vector<int>& path)
+void Algorithm::Dijkstra_with_nearest2(MeshCache &MC, int s_p, std::vector<int> &is_target, std::vector<int> &path)
 {
 	int e_p = -1;
 	std::vector<double> distance = MC.V_D[s_p];
@@ -222,7 +222,6 @@ void Algorithm::Dijkstra_with_nearest2(MeshCache& MC, int s_p, std::vector<int>&
 			{
 				e_p = tmp.id;
 				break;
-
 			}
 			is_visited[tmp.id] = 1;
 			for (int u = 0; u < MC.vv[tmp.id].size(); u++)
@@ -242,14 +241,13 @@ void Algorithm::Dijkstra_with_nearest2(MeshCache& MC, int s_p, std::vector<int>&
 	FindPath(v_p, e_p, path);
 }
 
-
-void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
+void Algorithm::Dijkstra_all(MeshCache &MC, int s_p)
 {
 	//计算k点到网格上所有点的距离
-	std::vector<double>& distance = MC.V_D[s_p];
-	std::vector<int>& is_visited = MC.dijkstra_isvisited[s_p];
-	std::priority_queue<node>& que = MC.dijkstra_cache[s_p];
-	std::vector<int>& v_p = MC.V_VP[s_p];
+	std::vector<double> &distance = MC.V_D[s_p];
+	std::vector<int> &is_visited = MC.dijkstra_isvisited[s_p];
+	std::priority_queue<node> &que = MC.dijkstra_cache[s_p];
+	std::vector<int> &v_p = MC.V_VP[s_p];
 	if (distance.size() == 0)
 	{
 		is_visited.resize(MC.n_vertices, 0);
@@ -265,7 +263,7 @@ void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
 		que.pop();
 		if (is_visited[tmp.id])
 			continue;
-		is_visited[tmp.id]=1;
+		is_visited[tmp.id] = 1;
 		for (int u = 0; u < MC.vv[tmp.id].size(); u++)
 		{
 			int vid = MC.vv[tmp.id][u];
@@ -280,7 +278,7 @@ void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
 	}
 }
 //标记存储顶点v的k邻域
-void Algorithm::UpdateNeighbourhood(MeshCache& MC, int k, int v)
+void Algorithm::UpdateNeighbourhood(MeshCache &MC, int k, int v)
 {
 	if (k <= MC.Max_Neighbour[v])
 		return;
@@ -311,11 +309,4 @@ void Algorithm::UpdateNeighbourhood(MeshCache& MC, int k, int v)
 		}
 		MC.Max_Neighbour[v] = k;
 	}
-
-
-
-
-
-
 }
-

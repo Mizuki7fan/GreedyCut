@@ -1,13 +1,13 @@
 #include "OptionReader.h"
 
-Option::Option(std::string s,std::string ModelPath)
-:ModelPath(ModelPath)
+Option::Option(std::string s, std::string ModelPath)
+	: ModelPath(ModelPath)
 {
 	//获取网格名称
 	ModelName = ModelPath.substr(ModelPath.find_last_of('\\') + 1, ModelPath.length());
-	
+
 	std::ifstream input(s);
-	std::string line,key,value;
+	std::string line, key, value;
 	int position;
 	while (std::getline(input, line))
 	{
@@ -36,6 +36,5 @@ Option::Option(std::string s,std::string ModelPath)
 			BanAreaMethod = value;
 		else if (key == "Alpha")
 			Alpha = std::stod(value);
-
 	}
 }

@@ -161,20 +161,7 @@ void PointSampling::ComputeSamplesFromSelectedRegion(std::string method, std::ve
 	Algorithm::FindPath(v_p, e_p, EdgeV);
 	for (int i = 1; i < EdgeV.size(); i++)
 		SampleEdges.push_back(MCache.vve[EdgeV[i-1]][EdgeV[i]]);
-	std::ofstream cut2("cut2.txt");
-	cut2 << "VERTICES" << std::endl;
-	for (auto a : EdgeV)
-		cut2 << a << std::endl;
-	cut2 << "EDGES" << std::endl;
-	for (auto a : SampleEdges)
-		cut2 << a << std::endl;
-	cut2.close();
 	SampleVertices = EdgeV;
-
-
-
-
-
 }
 
 //输入一个集合和一个点，获得这个点到这个集合所有点的最短路径的最大值

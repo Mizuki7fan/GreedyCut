@@ -6,8 +6,8 @@ class Option
 {
 public:
 	//根据网格路径和option文件的名字来获得相应的路径名字
-	Option(std::string,std::string);
-	
+	Option(std::string, std::string);
+
 	//输出目录
 	std::string ModelName;
 	std::string ModelPath;
@@ -22,8 +22,6 @@ public:
 	double Alpha = 0.1;
 	std::string BanAreaMethod = "NonConnect";
 
-
 	double filtering_rate;
 	double trimming_rate;
-
 };
