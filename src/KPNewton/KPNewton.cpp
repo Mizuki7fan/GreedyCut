@@ -49,7 +49,7 @@ void KPNewton::Tutte()
 	pardiso_t.reserve(6 * nv);
 	pardiso_tu.resize(nv, 0.0);
 	pardiso_tv.resize(nv, 0.0);
-	//ÕâÀïÆäÊµ²»Ì«ºÃ²¢ĞĞ£¬ÎŞ·¨Ô¤ÏÈÖªµÀÒ»¸öpardiso_jt[i]¸ÃÑ¡ÔñÄÄ¸ö·ÖÖ§
+	//è¿™é‡Œå…¶å®ä¸å¤ªå¥½å¹¶è¡Œï¼Œæ— æ³•é¢„å…ˆçŸ¥é“ä¸€ä¸ªpardiso_jt[i]è¯¥é€‰æ‹©å“ªä¸ªåˆ†æ”¯
 	for (const auto& vh : mesh.vertices())
 	{
 		pardiso_it.push_back(static_cast<int>(pardiso_jt.size()));
@@ -241,7 +241,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 {
 	if (EnergyIsNan)
 		return;
-	//mode¾ö¶¨ÊÇ·ñÒª¼ÓÃæ»ıÈ¨
+	//modeå†³å®šæ˜¯å¦è¦åŠ é¢ç§¯æƒ
 	auto maxiter = 100;
 	double Iscale = 1e-8;
 	double ls_StepFac = 0.5;
@@ -283,7 +283,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		auto&& frame = localframe[i];
 		frame[1] = std::sqrt(faceElens[i][2]);
 		frame[2] = std::polar(std::sqrt(faceElens[i][1]), faceAngles[i][0]);
-		//ÊÇ·ñÊ¹ÓÃÃæ»ıÈ¨
+		//æ˜¯å¦ä½¿ç”¨é¢ç§¯æƒ
 		area[i] = frame[1].real() * frame[2].imag() / 2;
 		//area[i] = 1;
 		DC[i][0] = std::complex<double>(0.0, -0.25) * (frame[1] - frame[2]) / area[i];
@@ -431,7 +431,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 			newpos[i] = result[i] + sDC[i] * lsa;
 		}
 		double newEnergy = ComputeEnergy(newpos, D, DC, area);
-		//ÄÜÁ¿ÖµÎªÕıÎŞÇî
+		//èƒ½é‡å€¼ä¸ºæ­£æ— ç©·
 		if (isnan(newEnergy))
 		{
 			EnergyIsNan = true;
@@ -612,6 +612,7 @@ void KPNewton::UpdateMesh(void)
 
 void KPNewton::ResultRect(const Mesh& orimesh)
 {
+
 	double scale = std::sqrt(MeshTools::Area(orimesh) / MeshTools::Area(mesh));
 #pragma omp parallel for num_threads(16)
 	for (int i = 0; i < mesh.n_vertices(); i++)

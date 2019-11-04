@@ -1,4 +1,4 @@
-﻿#include "OptionReader.h"
+#include "OptionReader.h"
 
 Option::Option(std::string s,std::string ModelPath)
 :ModelPath(ModelPath)
@@ -34,6 +34,8 @@ Option::Option(std::string s,std::string ModelPath)
 			Dn = std::stoi(value);
 		else if (key == "BanAreaMethod")
 			BanAreaMethod = value;
+		else if (key == "Alpha")
+			Alpha = std::stod(value);
 
 	}
 }

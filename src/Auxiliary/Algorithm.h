@@ -17,5 +17,7 @@ public:
 	static void Dijkstra_with_restrict(MeshCache& MCache, int s_p, std::vector<double>& weight, std::vector<int>&, std::vector<double>&);
 	static void Dijkstra_with_nearest2(MeshCache& MCache, int s_p, std::vector<int>& is_target, std::vector<int>& path);
 	static void Dijkstra_all(MeshCache& MCache, int k);
+	//求顶点的k邻域
+	static void UpdateNeighbourhood(MeshCache& MCache, int k, int v);
 };
 

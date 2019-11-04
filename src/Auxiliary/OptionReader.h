@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <fstream>
 
@@ -19,6 +19,7 @@ public:
 	std::string KPNewtonOutput = "Yes";
 	std::string VertexPriorityMetric = "RealDis";
 	int Dn = 10;
+	double Alpha = 0.1;
 	std::string BanAreaMethod = "NonConnect";
 
 

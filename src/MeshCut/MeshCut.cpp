@@ -1,8 +1,8 @@
-﻿#include "MeshCut.h"
+#include "MeshCut.h"
+#include <fstream>
 #include <string>
 
-MeshCut::MeshCut(Mesh &mesh, MeshCache &MCache) : 
-	orimesh(mesh), MCache(MCache)
+MeshCut::MeshCut(Mesh &mesh, MeshCache &MCache) : orimesh(mesh), MCache(MCache)
 {
 }
 
@@ -12,7 +12,7 @@ void MeshCut::SetCondition(const std::vector<int> &lmk, const std::vector<int> &
 	this->initseam = initseam;
 }
 
-void MeshCut::SetBanCondition(const std::vector<int>& banV, const std::vector<int>& banE, const std::string BanMethod)
+void MeshCut::SetBanCondition(const std::vector<int> &banV, const std::vector<int> &banE, const std::string BanMethod)
 {
 	//设置Ban选的相关条件,根据BanMethod进行设置
 	if (BanMethod == "NonConnect")
@@ -32,8 +32,200 @@ void MeshCut::SetBanCondition(const std::vector<int>& banV, const std::vector<in
 	}
 }
 
-void MeshCut::CalcBanArea(int Dn)
+void MeshCut::SetCut(std::vector<int> cV, std::vector<int> cE)
 {
+	this->cutVertex = cV;
+	this->cutEdge = cE;
+}
+
+void MeshCut::CalcBanArea(int Dn, std::string metric, double Alpha)
+{ //根据现有的区域来算Dn
+	//第二个是优先级的度量
+	std::vector<int> BanV(MCache.n_vertices, 0);
+	std::vector<int> BanE(MCache.n_edges, 0);
+	std::vector<int> BanF(MCache.n_faces, 0);
+
+	while (1)
+	{
+		BanV.clear(); BanV.resize(MCache.n_vertices, 0);
+		BanE.clear(); BanE.resize(MCache.n_edges, 0);
+		BanF.clear(); BanF.resize(MCache.n_faces, 0);
+		if (metric == "RealDis")
+		{ //表示算禁止区域是按照实际的网格距离来计算,这里可以并行
+			double range = Dn * MCache.avg_el;
+			double total_length = MCache.avg_el * MCache.n_vertices;
+#pragma omp parallel for
+			for (int u = 0; u < ban_vertex.size(); u++)
+			{
+				int s_p = ban_vertex[u];
+				std::vector<double> &distance = MCache.V_D[s_p];
+				if (distance.size() != 0)
+				{
+					//如果距离数组不为0则表示之前求过，那么
+					double max_dis = DBL_MIN;
+					for (int vid = 0; vid < distance.size(); vid++)
+					{
+						if (distance[vid] > total_length)
+							continue;
+						if (distance[vid] > max_dis)
+							max_dis = distance[vid];
+						if (distance[vid] < range)
+							BanV[vid] = 1;
+					}
+					if (max_dis > range)
+						continue;
+				}
+				std::vector<int> &is_visited = MCache.dijkstra_isvisited[s_p];
+				std::priority_queue<node> &que = MCache.dijkstra_cache[s_p];
+				std::vector<int> &v_p = MCache.V_VP[s_p];
+				if (distance.size() == 0)
+				{
+					is_visited.resize(MCache.n_vertices, 0);
+					distance.resize(MCache.n_vertices, DBL_MAX);
+					distance[s_p] = 0;
+					que.push(node(s_p, 0));
+					v_p.resize(MCache.n_vertices, -1);
+					v_p[s_p] = s_p;
+				}
+				while (1)
+				{
+					node tmp = que.top();
+					que.pop();
+					if (is_visited[tmp.id])
+						continue;
+					is_visited[tmp.id] = 1;
+					for (int u = 0; u < MCache.vv[tmp.id].size(); u++)
+					{
+						int vid = MCache.vv[tmp.id][u];
+						int eid = MCache.ve[tmp.id][u];
+						if (distance[tmp.id] + MCache.el[eid] < distance[vid])
+						{
+							distance[vid] = distance[tmp.id] + MCache.el[eid];
+							que.push(node(vid, distance[vid]));
+							v_p[vid] = tmp.id;
+						}
+					}
+					if (distance[tmp.id] > range)
+						break;
+					else
+					{
+						BanV[tmp.id] = 1;
+					}
+				}
+			}
+		}
+		else if (metric == "Neighbourhood")
+		{
+#pragma omp parallel for
+			for (int u = 0; u < ban_vertex.size(); u++)
+			{
+				int a = ban_vertex[u];
+				Algorithm::UpdateNeighbourhood(MCache, Dn, a);
+				for (int i = 0; i < MCache.n_vertices; i++)
+				{
+					if (MCache.Neighbour[a][i] <= Dn)
+						BanV[i] = 1;
+				}
+			}
+		}
+		for (int i = 0; i < MCache.n_edges; i++)
+		{
+			int v1 = MCache.ev[i][0];
+			int v2 = MCache.ev[i][1];
+			if (BanV[v1] == 1 || BanV[v2] == 1)
+				BanE[i] = 1;
+		}
+		std::vector<int> v_camp = BanV;
+		int max_region = 2;
+		std::vector<double> weight(MCache.n_edges, DBL_MAX);
+		for (int i = 0; i < MCache.n_edges; i++)
+		{
+			if (BanE[i] == 0)
+				weight[i] = MCache.el[i];
+		}
+		for (int i = 0; i < MCache.n_vertices; i++)
+		{
+			if (v_camp[i] != 0)
+				continue;
+			std::vector<double> d(MCache.n_vertices, DBL_MAX);
+			std::vector<int> v_i(MCache.n_vertices, 0);
+			Algorithm::Dijkstra_with_restrict(MCache, i, weight, v_i, d);
+			double total_length = MCache.avg_el * MCache.n_edges;
+			for (int u = 0; u < d.size(); u++)
+			{
+				if (d[u] < total_length)
+					v_camp[u] = max_region;
+			}
+			max_region++;
+		}
+		std::vector<double> area_region(max_region, 0);
+		//遍历所有的面，统计各个区域的面积
+		for (int i = 0; i < MCache.n_faces; i++)
+		{
+			int v1 = MCache.fv[i][0];
+			int v2 = MCache.fv[i][1];
+			int v3 = MCache.fv[i][2];
+			//同一个面的3个点不可能属于2个不同的阵营
+			int f_region = 1;
+			if (v_camp[v1] != 1)
+				f_region = v_camp[v1];
+			if (v_camp[v2] != 1)
+				f_region = v_camp[v2];
+			if (v_camp[v3] != 1)
+				f_region = v_camp[v3];
+			area_region[f_region] += MCache.fa[i];
+		}
+		//area_region记录了每个阵营的面积，选取最大的判断是否要回退
+		int max_region_id = -1;
+		double max_region_area = DBL_MIN;
+		for (int i = 2; i < area_region.size(); i++)
+		{
+			if (area_region[i] > max_region_area)
+			{
+				max_region_area = area_region[i];
+				max_region_id = i;
+			}
+		}
+std::ofstream region2("reg2.txt");
+region2 << "VERTICES" << std::endl;
+for (int i = 0; i < v_camp.size(); i++)
+	if (v_camp[i] == 2)
+		region2 << i << std::endl;
+		if (max_region_area < Alpha * MCache.avg_fa * MCache.n_faces)
+		{
+			Dn = std::floor(0.9 * Dn);
+			std::cout << "最大连通区域，回退" << std::endl;
+		}
+		else
+		{
+			MaxConnectedRegion.clear();
+			MaxConnectedRegion.resize(MCache.n_vertices);
+			for (int vid = 0; vid < v_camp.size(); vid++)
+			{
+				if (v_camp[vid] == max_region_id)
+					MaxConnectedRegion[vid] = 1;
+				else
+					MaxConnectedRegion[vid] = 0;
+			}
+std::ofstream banvertex("ban_vertex.txt");
+banvertex << "VERTICES" << std::endl;
+for (auto a : ban_vertex)
+	banvertex << a << std::endl;
+banvertex.close();
+std::ofstream banArea("banArea.txt");
+banArea << "VERTICES" << std::endl;
+for (int i = 0; i < BanV.size(); i++)
+	if (BanV[i] == 1)
+		banArea << i << std::endl;
+banArea << "EDGES" << std::endl;
+for (int i = 0; i < BanE.size(); i++)
+	if (BanE[i] == 1)
+		banArea << i << std::endl;
+banArea.close();
+			break;
+		}
+	}
+
 }
 
 void MeshCut::Connect()
@@ -247,9 +439,9 @@ void MeshCut::CalcForbiddenArea()
 
 		for (auto a : cutVertex)
 			ban_vertex[a] = 1;
-		for (int u = 0; u < k-1; u++)
+		for (int u = 0; u < k - 1; u++)
 		{
-			std::vector<int> tmp=ban_vertex;
+			std::vector<int> tmp = ban_vertex;
 			for (int i = 0; i < MCache.n_vertices; i++)
 			{
 				//如果点i被ban了，那么就把i的1邻域都给ban掉
@@ -259,9 +451,9 @@ void MeshCut::CalcForbiddenArea()
 						tmp[a] = 1;
 				}
 			}
-			ban_vertex=tmp;
+			ban_vertex = tmp;
 		}
-/*旧版
+		/*旧版
 		for (int u = 0; u < cutVertex.size(); u++)
 		{
 			for (int i = 0; i < k; i++)

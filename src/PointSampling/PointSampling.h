@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../MeshDefinition/MeshCache.h"
 #include "../Auxiliary/Algorithm.h"
 #include <random>
@@ -10,8 +10,8 @@ public:
 	PointSampling(MeshCache & m);
 	~PointSampling(void);
 	void Set(std::string method,std::string FirstPoint,int n_samples);
-
 	void ComputeSamples(std::vector<int>& Result);
+	void ComputeSamplesFromSelectedRegion(std::string method, std::vector<int>& Region, std::vector<int>& SampleVertices,std::vector<int>& SampleEdges);
 
 private:
 	// Compute distance from a point to a set

@@ -1,7 +1,8 @@
 #include "MeshDefinition.h"
-
 double MeshTools::Area(const Mesh& mesh)
 {
+
+
 	std::vector<double> area(mesh.n_faces(),0.0);
 #pragma omp parallel for num_threads(16)
 	for (int i = 0; i < mesh.n_faces(); i++)
@@ -17,5 +18,4 @@ double MeshTools::Area(const Mesh& mesh)
 	for (auto b : area)
 		a += b;
 	return a;
-
 }

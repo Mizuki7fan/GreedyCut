@@ -33,7 +33,7 @@ void Algorithm::Dijkstra(MeshCache& MC, std::vector<int>& lmk)
 		}
 		else
 		{
-			std::cout << "·Ã´æÃüÖĞ" << std::endl;
+			std::cout << "è®¿å­˜å‘½ä¸­" << std::endl;
 		}
 		for (int i = 0; i < lmk.size(); i++)
 		{
@@ -102,7 +102,7 @@ void Algorithm::Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<in
 		if (m_id < n_id)
 			std::swap(m_id, n_id);
 		if (m_id != n_id)
-		{//¸ù¾İÁ½¸öµãÕÒÖĞ¼äµÄ±ß
+		{//æ ¹æ®ä¸¤ä¸ªç‚¹æ‰¾ä¸­é—´çš„è¾¹
 			std::vector<int> path;
 			Algorithm::FindPath(MCache.V_VP[tmp.s_p], tmp.e_p, path);
 			vertex.insert(path[0]);
@@ -143,10 +143,7 @@ void Algorithm::FindPath(std::vector<int>& v_p, int e_p, std::vector<int>& path)
 
 void Algorithm::Dijkstra_with_restrict(MeshCache& MCache, int s_p, std::vector<double>& weight, std::vector<int>&v_p, std::vector<double>& d)
 {
-	double total_length = 0;
-
-	for (int i = 0; i < MCache.el.size(); i++)
-		total_length += MCache.el[i];
+	double total_length = MCache.avg_el*MCache.n_edges;
 	std::vector<int> is_visited(MCache.n_vertices, 0);
 	d[s_p] = 0;
 	is_visited[s_p] = 0;
@@ -248,7 +245,7 @@ void Algorithm::Dijkstra_with_nearest2(MeshCache& MC, int s_p, std::vector<int>&
 
 void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
 {
-	//¼ÆËãkµãµ½Íø¸ñÉÏËùÓĞµãµÄ¾àÀë
+	//è®¡ç®—kç‚¹åˆ°ç½‘æ ¼ä¸Šæ‰€æœ‰ç‚¹çš„è·ç¦»
 	std::vector<double>& distance = MC.V_D[s_p];
 	std::vector<int>& is_visited = MC.dijkstra_isvisited[s_p];
 	std::priority_queue<node>& que = MC.dijkstra_cache[s_p];
@@ -281,5 +278,44 @@ void Algorithm::Dijkstra_all(MeshCache& MC, int s_p)
 			}
 		}
 	}
+}
+//æ ‡è®°å­˜å‚¨é¡¶ç‚¹vçš„ké‚»åŸŸ
+void Algorithm::UpdateNeighbourhood(MeshCache& MC, int k, int v)
+{
+	if (k <= MC.Max_Neighbour[v])
+		return;
+	if (k == 1)
+	{
+		if (MC.Neighbour[v].size() == 0)
+		{
+			MC.Neighbour[v].resize(MC.n_vertices, INT_MAX);
+			MC.Neighbour[v][v] = 0;
+			for (auto a : MC.vv[v])
+				MC.Neighbour[v][a] = 1;
+			MC.Max_Neighbour[v] = 1;
+		}
+	}
+	else
+	{
+		UpdateNeighbourhood(MC, k - 1, v);
+		for (int u = 0; u < MC.n_vertices; u++)
+		{
+			if (MC.Neighbour[v][u] == k - 1)
+			{
+				for (int s = 0; s < MC.vv[u].size(); s++)
+				{
+					if (MC.Neighbour[v][MC.vv[u][s]] > k)
+						MC.Neighbour[v][MC.vv[u][s]] = k;
+				}
+			}
+		}
+		MC.Max_Neighbour[v] = k;
+	}
+
+
+
+
+
+
 }
 

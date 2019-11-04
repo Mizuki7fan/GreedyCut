@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include "..//MeshDefinition/MeshDefinition.h"
 #include "..//MeshDefinition/MeshCache.h"
@@ -15,7 +15,8 @@ public:
 	//设置landmark点和已有的割缝点
 	void SetCondition(const std::vector<int>& lmk,const std::vector<int>& initseam=std::vector<int>());
 	void SetBanCondition(const std::vector<int>& banV, const std::vector<int>& banE, const std::string BanMethod);
-	void CalcBanArea(int Dn);
+	void SetCut(std::vector<int> cV, std::vector<int> cE);
+	void CalcBanArea(int Dn,std::string Metric,double alpha);
 	//计算网格的割缝
 	void Connect();
 	//Cut_to_Seam
@@ -24,6 +25,7 @@ public:
 	Mesh GetCutedMesh() const { return cuted_mesh; };
 	std::vector<int>& GetCutvertex() { return cutVertex; }
 	std::vector<int>& GetCutEdge() { return cutEdge; }
+	std::vector<int>& GetMaxConnectedRegion() {return  MaxConnectedRegion;}
 	void CalcForbiddenArea();
 	void get_correspondence(std::vector<int>& he2idx, std::vector<int>& idx2meshvid);
 
@@ -37,6 +39,9 @@ private:
 	std::vector<int> cutEdge;
 	std::vector<int> ban_vertex;
 	std::vector<int> ban_edge;
+
+	std::vector<int> MaxConnectedRegion;
+
 
 	std::vector<int> he_to_idx; // to vertex index of a halfedge
 	std::vector<int> idx_to_mesh_idx; // vertex indices correspondence

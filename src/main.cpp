@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include "Auxiliary/OptionReader.h"
 #include "MeshDefinition/MeshDefinition.h"
 #include "MeshDefinition/MeshCache.h"
@@ -23,7 +23,7 @@
 int main(int argc, char* argv[])
 {
 	time_t st = clock();
-
+	system("chcp 65001");
 #ifdef __MINGW64__
 	std::cout << "The Complier is MinGW" << std::endl;	
 	OpenMesh::IO::_OBJReader_();
@@ -53,13 +53,14 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 	MeshCache MC(mesh);
+
 	std::cout << "Find Cut 1" << std::endl;
 	//生成第一条割缝，根据Option中的值来确定
 	//三种最远点采样的方法
 #ifdef _DEBUG
 	MC.updataCapacity();
 #endif // DEBUG
-
+	//第一次找点是没有什么约束条件的
 	PointSampling ps(MC);
 	ps.Set(opt.SampleMethod,opt.SampleFirstPoint,2);//读设置
 	std::vector<int> SamplePoints;
@@ -104,15 +105,17 @@ int main(int argc, char* argv[])
 	PF.Set(opt.VertexPriorityMetric);
 	//找局部最大值点，然后求他们的禁止区域
 	PF.FindLocalMaximizer(firstcutResult);
-
-	//找禁止区域，然后获得第二条Cut
+	
 	MeshCut Mcut2(mesh, MC);
-	//求要被ban的点
-	Mcut2.SetBanCondition(firstcutResult, MCut.GetCutEdge(),opt.BanAreaMethod);
-	//求被ban的区域，
-	Mcut2.CalcBanArea(opt.Dn);
-
-
+	Mcut2.SetBanCondition(firstcutResult, MCut.GetCutvertex(),opt.BanAreaMethod);
+	Mcut2.CalcBanArea(opt.Dn,opt.VertexPriorityMetric,opt.Alpha);
+	std::vector<int> AllowedArea = Mcut2.GetMaxConnectedRegion();
+	std::vector<int> cut2Edges, cut2Vertices;
+	ps.ComputeSamplesFromSelectedRegion(opt.SampleMethod,AllowedArea, cut2Vertices,cut2Edges);
+	Mcut2.SetCut(cut2Vertices, cut2Edges);
+	Mcut2.MakeSeam();
+	if (opt.MeshcutOutput == "Yes")
+		OpenMesh::IO::write_mesh(Mcut2.GetCutedMesh(), opt.OutputDir + "\\twice_cut.obj");
 	time_t et = clock();
 	std::cout << et - st << std::endl;
 
