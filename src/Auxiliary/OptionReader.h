@@ -20,7 +20,10 @@ public:
 	std::string VertexPriorityMetric = "RealDis";
 	int Dn = 10;
 	double Alpha = 0.1;
+	double DecayRate = 0.9;
 	std::string BanAreaMethod = "NonConnect";
+	int FixThreshold = 20;
+	int GAPForbiddenRadius = 5;
 
 	double filtering_rate;
 	double trimming_rate;

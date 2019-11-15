@@ -16,7 +16,7 @@ public:
 	void SetCondition(const std::vector<int>& lmk,const std::vector<int>& initseam=std::vector<int>());
 	void SetBanCondition(const std::vector<int>& banV, const std::vector<int>& banE, const std::string BanMethod);
 	void SetCut(std::vector<int> cV, std::vector<int> cE);
-	void CalcBanArea(int Dn,std::string Metric,double alpha);
+	void CalcBanArea(int Dn,std::string Metric,double alpha,double decay);
 	//计算网格的割缝
 	void Connect();
 	//Cut_to_Seam

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../MeshDefinition/MeshCache.h"
 //用于从网格中选取顶点
 class PointFinding
@@ -9,7 +9,8 @@ public:
 	void Set(std::string metric);
 	//找结果的点
 	void Find(std::vector<std::pair<int,double>>& result);
-	void FindLocalMaximizer(std::vector<int>& Result);
+	void FindLocalMaximizer();
+	std::vector<int> GetLocalMaximizer();
 
 private:
 	void PrepareComputeDistortion();

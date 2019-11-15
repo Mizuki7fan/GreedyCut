@@ -25,7 +25,7 @@ include_directories("D:/LIBRARY/mkl/compilers_and_libraries_2019.4.245/windows/m
 link_directories("D:/LIBRARY/mkl/compilers_and_libraries_2019.4.245/windows/mkl/lib/intel64")
 
 #包含Eigen的头文件和库
-include_directories("D:/LIBRARY")
+include_directories("D:/LIBRARY/Eigen")
 #包含OpenMesh的头文件目录和库
 include_directories("D:/LIBRARY/OpenMesh/src")
 
@@ -49,6 +49,7 @@ file (GLOB SRCFILES
     src/KPNewton/KPNewton.cpp
     src/PardisoSolver/PardisoSolver.cpp
     src/PointFinding/PointFinding.cpp
+    src/GAP/GAP.cpp
 )
 
 add_executable(GreedyCut ${SRCFILES})

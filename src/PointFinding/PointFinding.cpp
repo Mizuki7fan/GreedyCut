@@ -2,6 +2,7 @@
 
 PointFinding::PointFinding(const Mesh&m, const Mesh&pm,MeshCache& MCache):OriMesh(m),ParaedMesh(pm),MC(MCache)
 {
+	
 	PrepareComputeDistortion();
 	ComputeFaceDistortion();
 	ComputeVertexDistortion();
@@ -27,7 +28,7 @@ void PointFinding::Find(std::vector<std::pair<int, double>>& result)
 
 }
 
-void PointFinding::FindLocalMaximizer(std::vector<int>& Result)
+void PointFinding::FindLocalMaximizer()
 {
 	//找局部极大值点
 	LocalMaximizer.resize(MC.n_vertices, 0);
@@ -43,9 +44,16 @@ void PointFinding::FindLocalMaximizer(std::vector<int>& Result)
 				LocalMaximizer[i] = 1;
 		}
 	}
+
+}
+
+std::vector<int> PointFinding::GetLocalMaximizer()
+{
+	std::vector<int> Result;
 	for (int i = 0; i < MC.n_vertices; i++)
 		if (LocalMaximizer[i] == 0)
 			Result.push_back(i);
+	return Result;
 }
 
 

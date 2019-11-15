@@ -36,5 +36,12 @@ Option::Option(std::string s, std::string ModelPath)
 			BanAreaMethod = value;
 		else if (key == "Alpha")
 			Alpha = std::stod(value);
+		else if (key == "DecayRate")
+			DecayRate = std::stod(value);
+		else if (key == "FixThreshold")
+			FixThreshold = std::stoi(value);
+		else if (key == "GAPForbddenRadius")
+			GAPForbiddenRadius = std::stoi(value);
+
 	}
 }

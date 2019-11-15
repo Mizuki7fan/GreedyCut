@@ -6,6 +6,7 @@
 #include "MeshCut/MeshCut.h"
 #include "KPNewton/KPNewton.h"
 #include "PointFinding/PointFinding.h"
+#include "GAP/GAP.h"
 //MinGW和MSVC都需要包含这两个
 #ifdef _WIN64
 #include <direct.h>
@@ -104,18 +105,57 @@ int main(int argc, char* argv[])
 	PointFinding PF(mesh, cuted_mesh,MC);
 	PF.Set(opt.VertexPriorityMetric);
 	//找局部最大值点，然后求他们的禁止区域
-	PF.FindLocalMaximizer(firstcutResult);
+	PF.FindLocalMaximizer();
 	
 	MeshCut Mcut2(mesh, MC);
-	Mcut2.SetBanCondition(firstcutResult, MCut.GetCutvertex(),opt.BanAreaMethod);
-	Mcut2.CalcBanArea(opt.Dn,opt.VertexPriorityMetric,opt.Alpha);
+	//准备求禁止区域，参数是第一条割缝，局部最大值点，是否连线
+	Mcut2.SetBanCondition(PF.GetLocalMaximizer(), MCut.GetCutvertex(),opt.BanAreaMethod);
+	//计算禁止区域，参数是邻域长度，顶点扭曲度量，最大的连通区域面积阈值，邻域衰减系数
+	Mcut2.CalcBanArea(opt.Dn,opt.VertexPriorityMetric,opt.Alpha,opt.DecayRate);
 	std::vector<int> AllowedArea = Mcut2.GetMaxConnectedRegion();
 	std::vector<int> cut2Edges, cut2Vertices;
+	//从平滑区域选择第二条cut
 	ps.ComputeSamplesFromSelectedRegion(opt.SampleMethod,AllowedArea, cut2Vertices,cut2Edges);
 	Mcut2.SetCut(cut2Vertices, cut2Edges);
 	Mcut2.MakeSeam();
+	Mesh cuted_mesh2 = Mcut2.GetCutedMesh();
 	if (opt.MeshcutOutput == "Yes")
-		OpenMesh::IO::write_mesh(Mcut2.GetCutedMesh(), opt.OutputDir + "\\twice_cut.obj");
+		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\twice_cut.obj");
+
+	KPNewton kpn2(cuted_mesh2);
+	kpn2.Tutte();
+	kpn2.PrepareDataFree();
+	kpn2.RunFree(KPNewton::MIPS);
+	kpn2.RunFree(KPNewton::AMIPS);
+	kpn2.UpdateMesh();
+	kpn2.ResultRect(mesh);
+	if (kpn2.EnergyNan())
+	{
+		std::cerr << "fail in KPNewton2!" << std::endl;
+		return -1;
+	}
+	if (opt.KPNewtonOutput == "Yes")
+		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\kpn2.obj", OpenMesh::IO::Options::Default, 10);
+	std::cout << "Kpnewton2 Finish" << std::endl;
+
+	PointFinding PF2(mesh, cuted_mesh2, MC);
+	PF2.Set(opt.VertexPriorityMetric);
+	std::vector<std::pair<int, double>> Res;
+	PF2.FindLocalMaximizer();
+	std::vector<int> result = PF2.GetLocalMaximizer();
+	PF2.Find(Res);
+
+	std::cout << "GAP Stage ......" << std::endl;
+	GAP gap(mesh, MC);
+	gap.Set(Res,opt.VertexPriorityMetric,20,5);
+	gap.GenFirstCut();
+
+	//执行过滤阶段
+
+
+
+
+
 	time_t et = clock();
 	std::cout << et - st << std::endl;
 

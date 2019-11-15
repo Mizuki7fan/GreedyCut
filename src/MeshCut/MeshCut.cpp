@@ -38,7 +38,7 @@ void MeshCut::SetCut(std::vector<int> cV, std::vector<int> cE)
 	this->cutEdge = cE;
 }
 
-void MeshCut::CalcBanArea(int Dn, std::string metric, double Alpha)
+void MeshCut::CalcBanArea(int Dn, std::string metric, double Alpha,double DecayRate)
 { //根据现有的区域来算Dn
 	//第二个是优先级的度量
 	std::vector<int> BanV(MCache.n_vertices, 0);
@@ -188,7 +188,7 @@ void MeshCut::CalcBanArea(int Dn, std::string metric, double Alpha)
 		}
 		if (max_region_area < Alpha * MCache.avg_fa * MCache.n_faces)
 		{
-			Dn = std::floor(0.9 * Dn);
+			Dn = std::floor(DecayRate* Dn);
 			std::cout << "最大连通区域，回退" << std::endl;
 		}
 		else

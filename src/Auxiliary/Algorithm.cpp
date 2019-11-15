@@ -154,9 +154,9 @@ void Algorithm::Dijkstra_with_restrict(MeshCache &MCache, int s_p, std::vector<d
 	{
 		node tmp = que.top();
 		que.pop();
-		if (is_visited[tmp.id])
+		if (is_visited[tmp.id]==1)
 			continue;
-		is_visited[tmp.id];
+		is_visited[tmp.id]=1;
 		for (int u = 0; u < MCache.vv[tmp.id].size(); u++)
 		{
 			int vid = MCache.vv[tmp.id][u];
@@ -281,7 +281,11 @@ void Algorithm::Dijkstra_all(MeshCache &MC, int s_p)
 void Algorithm::UpdateNeighbourhood(MeshCache &MC, int k, int v)
 {
 	if (k <= MC.Max_Neighbour[v])
+	{
+		std::cout << "Memory Hit" << std::endl;
 		return;
+
+	}
 	if (k == 1)
 	{
 		if (MC.Neighbour[v].size() == 0)
