@@ -145,11 +145,13 @@ int main(int argc, char* argv[])
 	std::vector<int> result = PF2.GetLocalMaximizer();
 	PF2.Find(Res);
 
+	MC.updataCapacity();
+
 	std::cout << "GAP Stage ......" << std::endl;
 	GAP gap(mesh, MC);
-	gap.Set(Res,opt.VertexPriorityMetric,20,5);
+	gap.Set(Res,opt.VertexPriorityMetric,20,5,opt.filtering_rate);
 	gap.GenFirstCut();
-
+	gap.gradually_addp_pipeline();
 	//执行过滤阶段
 
 

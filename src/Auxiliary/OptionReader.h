@@ -24,6 +24,7 @@ public:
 	std::string BanAreaMethod = "NonConnect";
 	int FixThreshold = 20;
 	int GAPForbiddenRadius = 5;
+	double GAPFilteringRate = 0.01;
 
 	double filtering_rate;
 	double trimming_rate;

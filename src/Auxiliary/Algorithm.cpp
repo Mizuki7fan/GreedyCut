@@ -130,6 +130,50 @@ void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk, std::vector<in
 		cutvertex.push_back(a);
 }
 
+void Algorithm::Kruskal(std::vector<int>& lmk,std::priority_queue<PathInfo>& que,std::vector<PathInfo>& Res)
+{
+	//统计有多少个顶点？
+	int nv = lmk.size();
+	std::vector<int> spanning_tree_current(nv);
+	std::set<int> reV, reE;
+	//根据存储好的边来算生成树
+	std::vector<int> edge;
+	std::set<int> vertex;
+	for (int i = 0; i < nv; ++i)
+	{
+		spanning_tree_current[i] = i;
+	}
+	int index = 0;
+	int j = 0;
+	while (index < nv - 1)
+	{
+		PathInfo tmp = que.top();
+		que.pop();
+		int m_id = -1, n_id = -1;
+		for (int u = 0; u <nv; u++)
+		{
+			if (lmk[u] == tmp.s_p)
+				m_id = u;
+			if (lmk[u] == tmp.e_p)
+				n_id = u;
+		}
+		m_id = spanning_tree_current[m_id];
+		n_id = spanning_tree_current[n_id];
+		if (m_id < n_id)
+			std::swap(m_id, n_id);
+		if (m_id != n_id)
+		{ //根据两个点找中间的边
+			Res.push_back(tmp);
+			index++;
+			for (int i = 0; i < nv; ++i)
+			{
+				if (spanning_tree_current[i] == n_id)
+					spanning_tree_current[i] = m_id;
+			}
+		}
+	}
+}
+
 void Algorithm::FindPath(std::vector<int> &v_p, int e_p, std::vector<int> &path)
 {
 	path.clear();

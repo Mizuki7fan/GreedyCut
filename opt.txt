@@ -16,8 +16,8 @@ MeshcutOutput=Yes
 KPNewtonResultOutput=Yes
 
 #==============PointFindingCfg=======
-#如何度量顶点的优先级？ Neighbourhood/Geodesic/RealDis
-VertexPriorityMetric=Neighbourhood
+#如何度量顶点的优先级？ RealDis/Geodesic/RealDis
+VertexPriorityMetric=RealDis
 
 #==============禁止区域的半径，测地距离
 Dn=10
@@ -32,7 +32,8 @@ Alpha=0.1
 FixThreshold=20
 #==============GAP中每个点的禁止区域半径
 GAPForbddenRadius=5
-
+#==============GAPFilteringRate扭曲下降的阈值
+GAPFilteringRate=0.01;
 
 
 #论文中的流程对应的配置：
