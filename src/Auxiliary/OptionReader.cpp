@@ -43,6 +43,8 @@ Option::Option(std::string s, std::string ModelPath)
 		else if (key == "GAPForbddenRadius")
 			GAPForbiddenRadius = std::stoi(value);
 		else if (key == "GAPFilteringRate")
-			GAPFilteringRate == std::stod(value);
+			GAPFilteringRate = std::stod(value);
+		else if (key == "GAPParrCount")
+			GAPParrCount = std::stoi(value);
 	}
 }

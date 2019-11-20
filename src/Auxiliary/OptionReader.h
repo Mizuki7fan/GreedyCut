@@ -25,6 +25,7 @@ public:
 	int FixThreshold = 20;
 	int GAPForbiddenRadius = 5;
 	double GAPFilteringRate = 0.01;
+	int GAPParrCount = 6;
 
 	double filtering_rate;
 	double trimming_rate;

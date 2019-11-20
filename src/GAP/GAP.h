@@ -17,8 +17,13 @@ public:
 		std::string PriorityMetric, 
 		int FixThreshold, 
 		int ForbiddenRadius,
-		double FilteringRate);
+		double FilteringRate,
+		int ParrCount);
 	void SetPardiso(double conv_rate,int MaxIter,int bound_distortion_K);
+
+	//计算将所有固定点链接而得到的初始切割
+	void GenFirstCut();
+	void ClassifyFeaturePoints(double threshold);
 
 	void gradually_addp_pipeline();
 	//函数：run_bpe()
@@ -58,16 +63,23 @@ public:
 	//run_bpe()-BPE()-
 	void recover_to_src();
 
+	bool add1p(bool startfromtutte = false);
 
+	void rePre_calculate(int i);
+	void BPE(int i);
+	void Energysource(int i);
+	void Update_source_same_t(int N);
+	void SLIM(int N);
+	void max_step(const Eigen::VectorXd& xx, const Eigen::VectorXd& dd, double& step, int i);
+	void backtracking_line_search(const Eigen::VectorXd& x, const Eigen::VectorXd& d, const Eigen::VectorXd& negetive_grad, double& alpha, int i);
+	void Energy(const Eigen::VectorXd& position, double& energyupdate, int N);
+	void CM(int i);
+	void recover_to_src(int N);
 
-
-	//计算将所有固定点链接而得到的初始切割
-	void GenFirstCut();
-	void ClassifyFeaturePoints(double threshold);
-	void InitCut();
 
 private:
-	Mesh& mesh;
+	Mesh& Closedmesh;
+	Mesh mesh;
 	MeshCache MCache;
 	//点的优先级的度量
 	std::string VertexPriorityMetric = "Neighbourhood";
@@ -75,6 +87,9 @@ private:
 	int GAPForBiddenRadius = 5;
 	//MeshCut类需要构造函数,这里只能先创建其指针
 	std::unique_ptr<MeshCut> meshcut;
+	std::vector<int> v_seam, e_seam;
+	std::vector<int> he2idx, idx2meshvid;
+	std::vector<int> result;
 
 	//备选的特征点
 	std::vector<std::pair<int, double>> FeaturePoints;
@@ -98,6 +113,7 @@ private:
 	std::vector<double> area;
 	std::vector<double> area_uniform;
 	std::vector<double> area_src;
+	double originmesh_area_sqrt;
 
 	std::vector<int> F0, F1, F2;
 	std::vector<std::vector<int>> VV_ids;
@@ -121,6 +137,7 @@ private:
 	double bound_distortion_K;
 	//过滤阈值
 	double filtering_rate = 0.01;
+	int parr_count = 6;
 
 	std::vector<int> id_h00; std::vector<int> id_h01; std::vector<int> id_h02; std::vector<int> id_h03; std::vector<int> id_h04; std::vector<int> id_h05;
 	std::vector<int> id_h11; std::vector<int> id_h12; std::vector<int> id_h13; std::vector<int> id_h14; std::vector<int> id_h15;
@@ -128,7 +145,35 @@ private:
 	std::vector<int> id_h33; std::vector<int> id_h34; std::vector<int> id_h35;
 	std::vector<int> id_h44; std::vector<int> id_h45;
 	std::vector<int> id_h55;
+	//并行化的部分
+private:
+	std::vector<std::vector<int>> p_v_seam;
+	std::vector<std::vector<int>> p_e_seam;
+	std::vector<std::vector<int>> p_idx2meshvid;
+	std::vector<std::vector<int>> p_he2idx;
+	std::vector<std::vector<int>> p_F0;
+	std::vector<std::vector<int>> p_F1;
+	std::vector<std::vector<int>> p_F2;
+	std::vector<std::vector<std::vector<int>>> p_VV_ids;
+	std::vector<Eigen::VectorXd> p_position_of_mesh;
+	std::vector<int> p_V_N;
+	std::vector<int> p_F_N;
+	std::vector<std::vector<int>> p_pardiso_i, p_pardiso_ia, p_pardiso_ja;
+	std::vector<std::vector<double>> p_pardiso_a, p_pardiso_b;
+	std::vector<std::vector<int>> p_id_h00;	std::vector<std::vector<int>> p_id_h01;	std::vector<std::vector<int>> p_id_h02;	std::vector<std::vector<int>> p_id_h03;	std::vector<std::vector<int>> p_id_h04;	std::vector<std::vector<int>> p_id_h05;
+	std::vector<std::vector<int>> p_id_h11; std::vector<std::vector<int>> p_id_h12; std::vector<std::vector<int>> p_id_h13; std::vector<std::vector<int>> p_id_h14; std::vector<std::vector<int>> p_id_h15;
+	std::vector<std::vector<int>> p_id_h22; std::vector<std::vector<int>> p_id_h23; std::vector<std::vector<int>> p_id_h24; std::vector<std::vector<int>> p_id_h25;
+	std::vector<std::vector<int>> p_id_h33; std::vector<std::vector<int>> p_id_h34; std::vector<std::vector<int>> p_id_h35;
+	std::vector<std::vector<int>> p_id_h44; std::vector<std::vector<int>> p_id_h45;
+	std::vector<std::vector<int>> p_id_h55;
 
+	std::vector<std::vector<double>> p_source_p00, p_source_p01, p_source_p10, p_source_p11;
+	std::vector<std::vector<double>> p_update_p00, p_update_p01, p_update_p10, p_update_p11;
+	std::vector<double> p_energy_uniform, p_energy_area, p_energy_prev_seam;
+	std::vector<double> p_Intp_T_Min;
+	std::vector<double> p_changetocm_flag;
+	std::vector<double> p_g_norm;
+	std::vector<PardisoSolver*> p_pardiso;
 	
 
 

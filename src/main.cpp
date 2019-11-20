@@ -138,6 +138,7 @@ int main(int argc, char* argv[])
 		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\kpn2.obj", OpenMesh::IO::Options::Default, 10);
 	std::cout << "Kpnewton2 Finish" << std::endl;
 
+
 	PointFinding PF2(mesh, cuted_mesh2, MC);
 	PF2.Set(opt.VertexPriorityMetric);
 	std::vector<std::pair<int, double>> Res;
@@ -145,13 +146,16 @@ int main(int argc, char* argv[])
 	std::vector<int> result = PF2.GetLocalMaximizer();
 	PF2.Find(Res);
 
+
 	MC.updataCapacity();
 
 	std::cout << "GAP Stage ......" << std::endl;
 	GAP gap(mesh, MC);
-	gap.Set(Res,opt.VertexPriorityMetric,20,5,opt.filtering_rate);
+	gap.Set(Res,opt.VertexPriorityMetric,20,5,opt.GAPFilteringRate,opt.GAPParrCount);
+	gap.SetPardiso(1e-6, 500, 250);
 	gap.GenFirstCut();
 	gap.gradually_addp_pipeline();
+	
 	//执行过滤阶段
 
 

@@ -34,6 +34,8 @@ FixThreshold=20
 GAPForbddenRadius=5
 #==============GAPFilteringRate扭曲下降的阈值
 GAPFilteringRate=0.01;
+#==============GAP并行数
+GAPParrCount=6
 
 
 #论文中的流程对应的配置：
