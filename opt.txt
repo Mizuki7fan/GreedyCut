@@ -36,6 +36,12 @@ GAPForbddenRadius=5
 GAPFilteringRate=0.01;
 #==============GAP并行数
 GAPParrCount=6
+#==============AAP的并行数
+AAPParrCount=6
+#==============AAP停止条件
+AAPTrimmingRate=0.01
+#==============AAP最大加点数目
+AAPMaxAddingCount=100
 
 
 #论文中的流程对应的配置：

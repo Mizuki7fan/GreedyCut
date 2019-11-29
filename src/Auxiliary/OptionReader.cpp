@@ -46,5 +46,11 @@ Option::Option(std::string s, std::string ModelPath)
 			GAPFilteringRate = std::stod(value);
 		else if (key == "GAPParrCount")
 			GAPParrCount = std::stoi(value);
+		else if (key == "AAPParrCount")
+			AAPParrCount = std::stoi(value);
+		else if (key == "AAPTrimmingRate")
+			AAPTrimmingRate = std::stod(value);
+		else if (key == "AAPMaxAddingCount")
+			AAPMaxAddingCount = std::stoi(value);
 	}
 }

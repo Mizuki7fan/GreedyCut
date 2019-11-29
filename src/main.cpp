@@ -7,6 +7,8 @@
 #include "KPNewton/KPNewton.h"
 #include "PointFinding/PointFinding.h"
 #include "GAP/GAP.h"
+#include "AddAuxiliaryPoint/AddAuxiliaryPoints.h"
+
 //MinGW和MSVC都需要包含这两个
 #ifdef _WIN64
 #include <direct.h>
@@ -54,11 +56,9 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 	MeshCache MC(mesh);
-
 	std::cout << "Find Cut 1" << std::endl;
-	//生成第一条割缝，根据Option中的值来确定
-	//三种最远点采样的方法
 #ifdef _DEBUG
+
 	MC.updataCapacity();
 #endif // DEBUG
 	//第一次找点是没有什么约束条件的
@@ -143,9 +143,7 @@ int main(int argc, char* argv[])
 	PF2.Set(opt.VertexPriorityMetric);
 	std::vector<std::pair<int, double>> Res;
 	PF2.FindLocalMaximizer();
-	std::vector<int> result = PF2.GetLocalMaximizer();
 	PF2.Find(Res);
-
 
 	MC.updataCapacity();
 
@@ -155,6 +153,35 @@ int main(int argc, char* argv[])
 	gap.SetPardiso(1e-6, 500, 250);
 	gap.GenFirstCut();
 	gap.gradually_addp_pipeline();
+	std::vector<int> gapResult = gap.getResult();
+
+
+	AAP aap(mesh, MC, gapResult);
+	aap.Set(opt.AAPTrimmingRate, opt.AAPMaxAddingCount, opt.AAPParrCount);
+	aap.GenGraph();
+	aap.Op();
+	std::vector<int> totalResult = aap.GetResult();
+
+	time_t et = clock();
+	std::cout << et - st << std::endl;
+
+//	MC2 output(mesh,MC)
+
+
+
+	std::ofstream before("Before.txt");
+	for (auto a : Res)
+		before << a.first<<","<<a.second << std::endl;
+	before.close();
+	std::ofstream fix("fix.txt");
+	for (auto a : gapResult)
+		fix << a << std::endl;
+	fix.close();
+	std::ofstream total("total.txt");
+	for (auto a : totalResult)
+		total << a << std::endl;
+	total.close();
+
 	
 	//执行过滤阶段
 
@@ -162,8 +189,6 @@ int main(int argc, char* argv[])
 
 
 
-	time_t et = clock();
-	std::cout << et - st << std::endl;
 
 
 

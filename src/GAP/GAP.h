@@ -76,6 +76,7 @@ public:
 	void CM(int i);
 	void recover_to_src(int N);
 
+	std::vector<int> getResult();
 
 private:
 	Mesh& Closedmesh;

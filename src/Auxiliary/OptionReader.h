@@ -26,6 +26,9 @@ public:
 	int GAPForbiddenRadius = 5;
 	double GAPFilteringRate = 0.01;
 	int GAPParrCount = 6;
+	int AAPParrCount = 6;
+	double AAPTrimmingRate = 0.01;
+	int AAPMaxAddingCount = 100;
 
 	double filtering_rate;
 	double trimming_rate;

@@ -130,7 +130,7 @@ void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk, std::vector<in
 		cutvertex.push_back(a);
 }
 
-void Algorithm::Kruskal(std::vector<int>& lmk,std::priority_queue<PathInfo>& que,std::vector<PathInfo>& Res)
+void Algorithm::Kruskal(std::vector<int>& lmk,std::priority_queue<PathInfo> que,std::vector<PathInfo>& Res)
 {
 	//统计有多少个顶点？
 	int nv = lmk.size();

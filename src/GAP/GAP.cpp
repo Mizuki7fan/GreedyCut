@@ -39,15 +39,6 @@ void GAP::gradually_addp_pipeline()
 		i++;
 		is_moveon = add1p();
 	}
-	//OpenMesh::IO::write_mesh(mesh, "result.obj");
-	//for (auto it1 = mesh.vertices_begin(); it1 != mesh.vertices_end(); ++it1)
-	//{
-		//int id = it1->idx();
-		//OpenMesh::Vec3d pos(originmesh_area_sqrt * position_of_mesh(id), originmesh_area_sqrt * position_of_mesh(id + V_N), 0);
-		//mesh.set_point(*it1, pos);
-	//}
-	//OpenMesh::IO::write_mesh(mesh, "result.obj");
-	//std::cout << "132" << std::endl;
 }
 
 void GAP::run_bpe()
@@ -2226,6 +2217,11 @@ void GAP::recover_to_src(int N)
 	p_update_p11[N] = p_source_p11[N];
 }
 
+std::vector<int> GAP::getResult()
+{
+	return result;
+}
+
 
 void GAP::GenFirstCut()
 {
@@ -2444,7 +2440,11 @@ void GAP::ClassifyFeaturePoints(double threshold)
 	for (auto a : FeaturePoints)
 	{
 		if (a.second > threshold)
+		{
 			FixPoints.push_back(a.first);
+			result.push_back(a.first);
+		}
+
 		else
 			CanditatePoints.push_back(a.first);
 	}
