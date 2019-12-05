@@ -15,8 +15,7 @@ public:
 	std::string OutputDir = "../Output/";
 	std::string SampleMethod = "Dijkstra";
 	std::string SampleFirstPoint = "Random";
-	std::string MeshcutOutput = "Yes";
-	std::string KPNewtonOutput = "Yes";
+	std::string IntermediateResultOutput = "Yes";
 	std::string VertexPriorityMetric = "RealDis";
 	int Dn = 10;
 	double Alpha = 0.1;

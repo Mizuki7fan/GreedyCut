@@ -24,10 +24,6 @@ Option::Option(std::string s, std::string ModelPath)
 			SampleMethod = value;
 		else if (key == "SampleFirstPoint")
 			SampleFirstPoint = value;
-		else if (key == "MeshcutOutput")
-			MeshcutOutput = value;
-		else if (key == "KPNewtonResultOutput")
-			KPNewtonOutput = value;
 		else if (key == "VertexPriorityMetric")
 			VertexPriorityMetric = value;
 		else if (key == "Dn")
@@ -52,5 +48,7 @@ Option::Option(std::string s, std::string ModelPath)
 			AAPTrimmingRate = std::stod(value);
 		else if (key == "AAPMaxAddingCount")
 			AAPMaxAddingCount = std::stoi(value);
+		else if (key == "InterResultOutput")
+			IntermediateResultOutput = value;
 	}
 }

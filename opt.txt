@@ -1,19 +1,13 @@
 #结果输出目录
 OutputDir=../Output/
 
+#==============InterResult==========
+InterResultOutput=Yes
 #==============PointSamplingCfg===========
 #采样方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
 SampleMethod=Dijkstra
 #采样初始点的起点，可以指定也可以随机Random
 SampleFirstPoint=Random
-
-#==============MeshutCfg===========
-#是否输出找到的割缝和点，0表示不输出，1表示输出
-MeshcutOutput=Yes
-
-#==============KPNewtonCfg=========
-#是否要输出KPNewton的中间结果
-KPNewtonResultOutput=Yes
 
 #==============PointFindingCfg=======
 #如何度量顶点的优先级？ RealDis/Geodesic/RealDis

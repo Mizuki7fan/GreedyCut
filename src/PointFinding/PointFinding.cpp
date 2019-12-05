@@ -19,12 +19,10 @@ void PointFinding::Set(std::string metric)
 
 void PointFinding::Find(std::vector<std::pair<int, double>>& result)
 {//主体函数，用于找点
-	MC.updataCapacity();
 	if (Metric == "RealDis")
 		FindByRealDis(result);
 	else if (Metric == "Neighbourhood")
 		FindByNeighbourhood(result);
-	MC.updataCapacity();
 
 }
 

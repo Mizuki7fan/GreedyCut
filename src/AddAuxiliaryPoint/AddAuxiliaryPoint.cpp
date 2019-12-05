@@ -1,4 +1,4 @@
-#include "AddAuxiliaryPoints.h"
+#include "AddAuxiliaryPoint.h"
 
 AAP::AAP(Mesh& mesh, MeshCache& MC, std::vector<int>& landmark)
 	:mesh(mesh),MC(MC),landmark(landmark)
@@ -83,6 +83,7 @@ void AAP::Greed1_Op()
 		greed1_ok = true;
 	else
 	{
+		std::cout << "AAP add point " << min_id << std::endl;
 		landmark.push_back(min_id);
 		greed1_ok = false;
 		Algorithm::Dijkstra_all(MC, min_id);

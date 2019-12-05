@@ -7,7 +7,7 @@
 #include "KPNewton/KPNewton.h"
 #include "PointFinding/PointFinding.h"
 #include "GAP/GAP.h"
-#include "AddAuxiliaryPoint/AddAuxiliaryPoints.h"
+#include "AddAuxiliaryPoint/AddAuxiliaryPoint.h"
 
 //MinGW和MSVC都需要包含这两个
 #ifdef _WIN64
@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
 	time_t st = clock();
 	system("chcp 65001");
 #ifdef __MINGW64__
-	std::cout << "The Complier is MinGW" << std::endl;	
+	std::cout << "The Complier is MinGW" << std::endl;
 	OpenMesh::IO::_OBJReader_();
 	OpenMesh::IO::_OBJWriter_();
 #elif _MSC_VER
@@ -38,18 +38,19 @@ int main(int argc, char* argv[])
 	//网格名称需要单独读取，为了批量化的测试。
 	std::string ModelPath = argv[1];
 	//读取配置文件，批量化测试的配置应当相同。
-	Option opt(argv[2],ModelPath);
+	Option opt(argv[2], ModelPath);
 	std::cout << "start processing [" << opt.ModelName << "] ......" << std::endl;
 
 	//创建保存运行结果的文件夹
 #ifdef _WIN64
-	if (_access(opt.OutputDir.c_str(),0)==-1)
+	if (_access(opt.OutputDir.c_str(), 0) == -1)
 		int i = _mkdir(opt.OutputDir.c_str());
 #endif // _WIN64
 
 	//读网格，新建备份类
 	Mesh mesh;
 	OpenMesh::IO::read_mesh(mesh, argv[1]);
+	OpenMesh::IO::write_mesh(mesh, opt.OutputDir + "\\" + opt.ModelName);
 	if (mesh.n_vertices() == 0)
 	{
 		std::cerr << "网格顶点数为0" << std::endl;
@@ -57,32 +58,35 @@ int main(int argc, char* argv[])
 	}
 	MeshCache MC(mesh);
 	std::cout << "Find Cut 1" << std::endl;
-#ifdef _DEBUG
-
-	MC.updataCapacity();
-#endif // DEBUG
 	//第一次找点是没有什么约束条件的
 	PointSampling ps(MC);
-	ps.Set(opt.SampleMethod,opt.SampleFirstPoint,2);//读设置
+	ps.Set(opt.SampleMethod, opt.SampleFirstPoint, 2);//读设置
 	std::vector<int> SamplePoints;
 	ps.ComputeSamples(SamplePoints);
-#ifdef _DEBUG
-	MC.updataCapacity();
-#endif // DEBUG
-	//初始的一刀
+
 	MeshCut MCut(mesh, MC);
 	//传入采样点
 	MCut.SetCondition(SamplePoints);
 	//算Cut
 	MCut.Connect();
-#ifdef _DEBUG
-	MC.updataCapacity();
-#endif // DEBUG
 	MCut.MakeSeam();
 	Mesh cuted_mesh = MCut.GetCutedMesh();
 
-	if (opt.MeshcutOutput == "Yes")
-		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\initial_cut.obj");
+	if (opt.IntermediateResultOutput == "Yes")
+	{
+		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\FirstCut.obj");
+		std::ofstream firstcut(opt.OutputDir + "\\FirstCut.txt");
+		std::vector<int> cutV = MCut.GetCutvertex();
+		std::vector<int> cutE = MCut.GetCutEdge();
+		firstcut << "VERTICES" << std::endl;
+		for (auto a : cutV)
+			firstcut << a << std::endl;
+		firstcut << "EDGES" << std::endl;
+		for (auto a : cutE)
+			firstcut << a << std::endl;
+		firstcut.close();
+	}
+
 	std::cout << "KPNewton1" << std::endl;
 	//第一次kpnewton,KPN的部分以后搞懂了之后可以再修改，先保持
 	KPNewton kpn(cuted_mesh);
@@ -94,13 +98,15 @@ int main(int argc, char* argv[])
 	kpn.ResultRect(mesh);
 	if (kpn.EnergyNan())
 	{
-		std::cerr <<"fail in KPNewton!" << std::endl;
+		std::cerr << "fail in KPNewton!" << std::endl;
 		return -1;
 	}
-	if (opt.KPNewtonOutput=="Yes")
-		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj",OpenMesh::IO::Options::Default,10);
-	std::cout << "Kpnewton Finish" << std::endl;
+	if (opt.IntermediateResultOutput == "Yes")
+	{
+		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj", OpenMesh::IO::Options::Default, 10);
+	}
 
+	std::cout << "Kpnewton Finish" << std::endl;
 	std::vector<int> firstcutResult;
 	PointFinding PF(mesh, cuted_mesh,MC);
 	PF.Set(opt.VertexPriorityMetric);
@@ -119,8 +125,25 @@ int main(int argc, char* argv[])
 	Mcut2.SetCut(cut2Vertices, cut2Edges);
 	Mcut2.MakeSeam();
 	Mesh cuted_mesh2 = Mcut2.GetCutedMesh();
-	if (opt.MeshcutOutput == "Yes")
-		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\twice_cut.obj");
+	if (opt.IntermediateResultOutput == "Yes")
+	{
+		std::ofstream SecondAllowedArea(opt.OutputDir + "\\SecondAllowedArea.txt");
+		SecondAllowedArea << "VERTICES" << std::endl;
+		for (auto a : AllowedArea)
+			SecondAllowedArea << a << std::endl;
+		SecondAllowedArea.close();
+		std::ofstream SecondCutTxt(opt.OutputDir + "\\SecondCut.txt");
+		std::vector<int> cutV = Mcut2.GetCutvertex();
+		std::vector<int> cutE = Mcut2.GetCutEdge();
+		SecondCutTxt << "VERTICES" << std::endl;
+		for (auto a : cutV)
+			SecondCutTxt << a << std::endl;
+		SecondCutTxt << "EDGES" << std::endl;
+		for (auto a : cutE)
+			SecondCutTxt << a << std::endl;
+		SecondCutTxt.close();
+		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\SecondCut.obj");
+	}
 
 	KPNewton kpn2(cuted_mesh2);
 	kpn2.Tutte();
@@ -134,10 +157,11 @@ int main(int argc, char* argv[])
 		std::cerr << "fail in KPNewton2!" << std::endl;
 		return -1;
 	}
-	if (opt.KPNewtonOutput == "Yes")
+	if (opt.IntermediateResultOutput == "Yes")
+	{
 		OpenMesh::IO::write_mesh(cuted_mesh2, opt.OutputDir + "\\kpn2.obj", OpenMesh::IO::Options::Default, 10);
+	}
 	std::cout << "Kpnewton2 Finish" << std::endl;
-
 
 	PointFinding PF2(mesh, cuted_mesh2, MC);
 	PF2.Set(opt.VertexPriorityMetric);
@@ -145,7 +169,17 @@ int main(int argc, char* argv[])
 	PF2.FindLocalMaximizer();
 	PF2.Find(Res);
 
-	MC.updataCapacity();
+	if (opt.IntermediateResultOutput == "Yes")
+	{
+		std::ofstream pf2Result(opt.OutputDir + "\\BeforeFiltering.txt");
+		std::vector<int> r = PF2.GetLocalMaximizer();
+		pf2Result << "VERTICES" << std::endl;
+		for (auto a : r)
+			pf2Result << a << std::endl;
+		pf2Result.close();
+	}
+
+
 
 	std::cout << "GAP Stage ......" << std::endl;
 	GAP gap(mesh, MC);
@@ -165,38 +199,16 @@ int main(int argc, char* argv[])
 	time_t et = clock();
 	std::cout << et - st << std::endl;
 
-//	MC2 output(mesh,MC)
-
-
-
-	std::ofstream before("Before.txt");
+	std::ofstream before(opt.OutputDir + "\\Before.txt");
 	for (auto a : Res)
 		before << a.first<<","<<a.second << std::endl;
 	before.close();
-	std::ofstream fix("fix.txt");
+	std::ofstream fix(opt.OutputDir + +"\\fix.txt");
 	for (auto a : gapResult)
 		fix << a << std::endl;
 	fix.close();
-	std::ofstream total("total.txt");
+	std::ofstream total(opt.OutputDir + "\\"+opt.ModelName+"_landmarks.txt");
 	for (auto a : totalResult)
 		total << a << std::endl;
 	total.close();
-
-	
-	//执行过滤阶段
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

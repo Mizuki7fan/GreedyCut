@@ -5,7 +5,6 @@ project(GreedyCut)
 #识别使用的编译器
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     message(STATUS "编译器是gcc")
-    add_compile_options(-std=c++11)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     message(STATUS "编译器是msvc")
     #添加预处理器定义，/Db表示是MSVC的编译器
@@ -13,6 +12,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
 
 SET(CMAKE_CXX_FLAGS "-O2")
+#使用OpenMP
 find_package(OpenMP REQUIRED)
 if(OPENMP_FOUND)
     message("发现OpenMP")
@@ -49,6 +49,7 @@ file (GLOB SRCFILES
     src/KPNewton/KPNewton.cpp
     src/PardisoSolver/PardisoSolver.cpp
     src/PointFinding/PointFinding.cpp
+    src/AddAuxiliaryPoint/AddAuxiliaryPoint.cpp
     src/GAP/GAP.cpp
 )
 

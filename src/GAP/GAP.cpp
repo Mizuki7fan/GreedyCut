@@ -1,4 +1,5 @@
 #include "GAP.h"
+#include <memory>
 
 GAP::GAP(Mesh& mesh, MeshCache& MCache) :
 	Closedmesh(mesh), MCache(MCache)
@@ -1386,7 +1387,7 @@ bool GAP::add1p(bool startfromtutte)
 	}
 	if (max_id != -1)
 	{
-		std::cout << "addpoint   " << value[max_id] << std::endl;
+		std::cout << "GAP addpoint   " << value[max_id] << std::endl;
 		result.push_back(value[max_id]);
 		auto it = std::find(CanditatePoints.begin(), CanditatePoints.end(), value[max_id]);
 		CanditatePoints.erase(it);

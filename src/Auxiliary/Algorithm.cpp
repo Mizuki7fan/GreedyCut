@@ -31,10 +31,6 @@ void Algorithm::Dijkstra(MeshCache &MC, std::vector<int> &lmk)
 			v_p.resize(MC.n_vertices, -1);
 			v_p[s_p] = s_p;
 		}
-		else
-		{
-			std::cout << "访存命中" << std::endl;
-		}
 		for (int i = 0; i < lmk.size(); i++)
 		{
 			if (is_visited[lmk[i]] != 0)
