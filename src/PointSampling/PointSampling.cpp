@@ -1,4 +1,7 @@
 #include "PointSampling.h"
+#include <random>
+#include <ctime>
+
 
 
 PointSampling::PointSampling(MeshCache& m)
@@ -16,13 +19,14 @@ void PointSampling::Set(std::string method_id, std::string FirstPoint, int n_sam
 	this->method = method_id;
 	if (method == "Dijkstra") { std::cout << "SampleMethod: Dijkstra" << std::endl; }
 	else if (method == "GeodesicDistance") {	std::cout << "SampleMethod: GeodesicDistance" << std::endl;}
-	switch (method == "RealDistance") { std::cout << "SampleMethod: RealDistance" << std::endl; }
+	else if(method == "RealDistance") { std::cout << "SampleMethod: RealDistance" << std::endl; }
 
 	if (FirstPoint == "Random") { 
 		std::cout << "SampleFirstPoint: Random" << std::endl; 
-		std::default_random_engine e;
+		std::default_random_engine e(time(NULL));
 		std::uniform_int_distribution<unsigned> u(0,MCache.n_vertices);
 		this->FirstPoint = u(e);
+		//this->FirstPoint = 0;
 		std::cout << "Generate Random FirstPoint: " << this->FirstPoint << std::endl;
 	}
 	else

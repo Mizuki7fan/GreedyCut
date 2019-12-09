@@ -1,4 +1,6 @@
 #include "PointFinding.h"
+#include <random>
+
 
 PointFinding::PointFinding(const Mesh&m, const Mesh&pm,MeshCache& MCache):OriMesh(m),ParaedMesh(pm),MC(MCache)
 {

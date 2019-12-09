@@ -1,49 +1,28 @@
 #pragma once
 #include <vector>
-#include <cmath>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <iostream>
-#include "mkl_pardiso.h"
-#include "mkl_types.h"
-using namespace std;
 
-//extern "C"{
-//	/* PARDISO prototype. */
-//	void pardisoinit(void   *, int    *, int *, int *, double *, int *);
-//	void pardiso(void   *, int    *, int *, int *, int *, int *,
-//		double *, int    *, int *, int *, int *, int *,
-//		int *, double *, double *, int *, double *);
-//	void pardiso_chkmatrix(int *, int *, double *, int *, int *, int *);
-//	void pardiso_chkvec(int *, int *, double *, int *);
-//	void pardiso_printstats(int *, int *, double *, int *, int *, int *,
-//		double *, int *);
-//}
-
-class PardisoSolver
+class Solver
 {
+private:
+    /* data */
 public:
-	PardisoSolver();
-	~PardisoSolver();
+	virtual ~Solver() {};
+	virtual void pardiso_init()=0;
+	virtual bool factorize() =0;
+	virtual void pardiso_solver() {};
+	virtual void free_numerical_factorization_memory() {};
 
-	void pardiso_init();
-	bool factorize();
-	void pardiso_solver();
-	void free_numerical_factorization_memory();
+	std::vector<double> result;
 
-	vector<double> result;
-
-	vector<int> ia;
-	vector<int> ja;
-	vector<double> a;
-	vector<double> rhs;
+	std::vector<int> ia;
+	std::vector<int> ja;
+	std::vector<double> a;
+	std::vector<double> rhs;
 
 	int nnz;
 	int num;
 
 protected:
-
 	//pardiso stuff
 	/*
 	1: real and structurally symmetric, supernode pivoting

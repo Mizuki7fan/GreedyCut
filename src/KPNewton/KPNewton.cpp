@@ -1,5 +1,11 @@
 #include "KPNewton.h"
 #include <unordered_map>
+#ifdef USE_PARDISO
+#include "../Solver/PardisoSolver.h"
+#elif defined(USE_MKL_PARDISO)
+#include "../Solver/MKLPardisoSolver.h"
+#endif // USE_PARDISO
+
 #define M_2_SQRTPI 1.12837916709551257390   // 2/sqrt(pi)
 
 KPNewton::KPNewton(Mesh& m)
@@ -19,7 +25,11 @@ KPNewton::KPNewton(Mesh& m)
 			break;
 		}
 	}
-
+	#ifdef USE_PARDISO
+	solver = new PardisoSolver();
+	#elif USE_MKL_PARDISO
+	solver = new MKLPardisoSolver();
+	#endif // USE_PARDISO
 }
 
 KPNewton::~KPNewton()
@@ -38,9 +48,9 @@ void KPNewton::Tutte()
 		posx[boundaryvhs[i].idx()] = area_1_factor * cos(i * delta_angle);
 		posy[boundaryvhs[i].idx()] = area_1_factor * sin(i * delta_angle);
 	}
-	auto& pardiso_it = solver.ia;
-	auto& pardiso_jt = solver.ja;
-	auto& pardiso_t = solver.a;
+	auto& pardiso_it = solver->ia;
+	auto& pardiso_jt = solver->ja;
+	auto& pardiso_t = solver->a;
 	std::vector<double> pardiso_tu;
 	std::vector<double> pardiso_tv;
 
@@ -92,17 +102,17 @@ void KPNewton::Tutte()
 		}
 	}
 	pardiso_it.push_back(static_cast<int>(pardiso_jt.size()));
-	solver.num = static_cast<int>(nv);
-	solver.nnz = pardiso_jt.size();
+	solver->num = static_cast<int>(nv);
+	solver->nnz = pardiso_jt.size();
 
-	solver.pardiso_init();
-	solver.factorize();
-	solver.rhs = pardiso_tu;
-	solver.pardiso_solver();
-	posx = solver.result;
-	solver.rhs = pardiso_tv;
-	solver.pardiso_solver();
-	posy = solver.result;
+	solver->pardiso_init();
+	solver->factorize();
+	solver->rhs = pardiso_tu;
+	solver->pardiso_solver();
+	posx = solver->result;
+	solver->rhs = pardiso_tv;
+	solver->pardiso_solver();
+	posy = solver->result;
 	result.clear();
 	result.reserve(nv);
 	for (size_t i = 0; i < nv; i++)
@@ -113,8 +123,8 @@ void KPNewton::Tutte()
 
 void KPNewton::PrepareDataFree(void)
 {
-	auto&& ia = solver.ia;
-	auto&& ja = solver.ja;
+	auto&& ia = solver->ia;
+	auto&& ja = solver->ja;
 	int nv = static_cast<int>(mesh.n_vertices());
 	ia.clear();
 	ja.clear();
@@ -179,9 +189,9 @@ void KPNewton::PrepareDataFree(void)
 		ja.insert(ja.end(), tmp_ja[i].begin(), tmp_ja[i].end());
 	}
 	ia.push_back(static_cast<int>(ja.size()) + 1);
-	solver.a.resize(ja.size());
-	solver.num = static_cast<int>(2 * mesh.n_vertices());
-	solver.nnz = ja.size();
+	solver->a.resize(ja.size());
+	solver->num = static_cast<int>(2 * mesh.n_vertices());
+	solver->nnz = ja.size();
 
 	std::vector<std::unordered_map<int, int>> spid(2 * nv);
 	size_t j = 0;
@@ -234,7 +244,7 @@ void KPNewton::PrepareDataFree(void)
 	{
 		a--;
 	}
-	solver.pardiso_init();
+	solver->pardiso_init();
 }
 
 void KPNewton::RunFree(const EnergyType& etype)
@@ -300,9 +310,9 @@ void KPNewton::RunFree(const EnergyType& etype)
 
 	for (int iter = 0; iter < maxiter; iter++)
 	{
-		auto&& a = solver.a;
+		auto&& a = solver->a;
 		a.clear();
-		a.resize(solver.ja.size(), 0);
+		a.resize(solver->ja.size(), 0);
 		double e = 0;
 		std::vector<double> g(2 * nV, 0);
 		std::vector<double> b(2 * nV, 0);
@@ -389,7 +399,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 				}
 			}
 		}
-		solver.factorize();
+		solver->factorize();
 		double normg = 0.0;
 		std::vector<double> tmp_normg(g.size());
 
@@ -403,9 +413,9 @@ void KPNewton::RunFree(const EnergyType& etype)
 			normg += a;
 		normg /= std::sqrt(normg);
 		std::vector<double> x;
-		solver.rhs = b;
-		solver.pardiso_solver();
-		x = solver.result;
+		solver->rhs = b;
+		solver->pardiso_solver();
+		x = solver->result;
 		std::vector<std::complex<double>> sDC(nV);
 		std::vector<std::complex<double>> newpos(nV);
 		double stepDirlen = 0.0;
@@ -432,7 +442,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		}
 		double newEnergy = ComputeEnergy(newpos, D, DC, area);
 		//能量值为正无穷
-		if (isnan(newEnergy))
+		if (std::isnan(newEnergy))
 		{
 			EnergyIsNan = true;
 			break;

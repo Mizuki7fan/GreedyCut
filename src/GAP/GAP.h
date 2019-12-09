@@ -7,19 +7,23 @@
 #include"Eigen/Sparse"
 #include"Eigen/SparseLU"
 #include "Eigen/SVD"
-#include "..\PardisoSolver\PardisoSolver.h"
+#include "../Solver/Solver.h"
+#ifdef __MINGW64__
+#include <memory>
+#endif
+
 
 class GAP
 {
 public:
-	GAP(Mesh& mesh,MeshCache& MCache);
+	GAP(Mesh& mesh, MeshCache& MCache);
 	void Set(const std::vector<std::pair<int, double>>& FP,
-		std::string PriorityMetric, 
-		int FixThreshold, 
+		std::string PriorityMetric,
+		int FixThreshold,
 		int ForbiddenRadius,
 		double FilteringRate,
 		int ParrCount);
-	void SetPardiso(double conv_rate,int MaxIter,int bound_distortion_K);
+	void SetSolver(double conv_rate, int MaxIter, int bound_distortion_K);
 
 	//计算将所有固定点链接而得到的初始切割
 	void GenFirstCut();
@@ -121,9 +125,9 @@ private:
 
 	Eigen::VectorXd position_of_mesh;
 	Eigen::VectorXd negative_grad_norm;
-	PardisoSolver* pardiso;
-	std::vector<int> pardiso_i, pardiso_ia, pardiso_ja;
-	std::vector<double> pardiso_a, pardiso_b;
+	Solver* solver;
+	std::vector<int> solver_i, solver_ia, solver_ja;
+	std::vector<double> solver_a, solver_b;
 
 	double time_consumption;
 
@@ -159,8 +163,8 @@ private:
 	std::vector<Eigen::VectorXd> p_position_of_mesh;
 	std::vector<int> p_V_N;
 	std::vector<int> p_F_N;
-	std::vector<std::vector<int>> p_pardiso_i, p_pardiso_ia, p_pardiso_ja;
-	std::vector<std::vector<double>> p_pardiso_a, p_pardiso_b;
+	std::vector<std::vector<int>> p_solver_i, p_solver_ia, p_solver_ja;
+	std::vector<std::vector<double>> p_solver_a, p_solver_b;
 	std::vector<std::vector<int>> p_id_h00;	std::vector<std::vector<int>> p_id_h01;	std::vector<std::vector<int>> p_id_h02;	std::vector<std::vector<int>> p_id_h03;	std::vector<std::vector<int>> p_id_h04;	std::vector<std::vector<int>> p_id_h05;
 	std::vector<std::vector<int>> p_id_h11; std::vector<std::vector<int>> p_id_h12; std::vector<std::vector<int>> p_id_h13; std::vector<std::vector<int>> p_id_h14; std::vector<std::vector<int>> p_id_h15;
 	std::vector<std::vector<int>> p_id_h22; std::vector<std::vector<int>> p_id_h23; std::vector<std::vector<int>> p_id_h24; std::vector<std::vector<int>> p_id_h25;
@@ -174,8 +178,5 @@ private:
 	std::vector<double> p_Intp_T_Min;
 	std::vector<double> p_changetocm_flag;
 	std::vector<double> p_g_norm;
-	std::vector<PardisoSolver*> p_pardiso;
-	
-
-
+	std::vector<Solver*> p_solver;
 };

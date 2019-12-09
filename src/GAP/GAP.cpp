@@ -1,11 +1,16 @@
 #include "GAP.h"
 #include <memory>
+#ifdef USE_PARDISO
+#include "../Solver/PardisoSolver.h"
+#elif USE_MKL_PARDISO
+#include "../Solver/MKLPardisoSolver.h"
+#endif // USE_PARDISO
 
 GAP::GAP(Mesh& mesh, MeshCache& MCache) :
 	Closedmesh(mesh), MCache(MCache)
 {
 
-}
+};
 
 void GAP::Set(const std::vector<std::pair<int, double>>& FP,
 	std::string PriorityMetric,
@@ -22,9 +27,9 @@ void GAP::Set(const std::vector<std::pair<int, double>>& FP,
 	this->parr_count = ParrCount;
 }
 
-void GAP::SetPardiso(double conv_rate, int MaxIter, int bound_distortion_K)
+void GAP::SetSolver(double conv_rate, int MaxIter, int bound_distortion_K)
 {
-	pardiso = NULL;
+	solver = NULL;
 	convgence_con_rate = conv_rate;
 	MAX_ITER_NUM = MaxIter;
 	this->bound_distortion_K = bound_distortion_K;
@@ -132,18 +137,18 @@ void GAP::local_coordinate_inverse(int i, double& p00, double& p01, double& p10,
 
 void GAP::Pre_calculate()
 {//准备Pardiso的数据
-	pardiso_i.clear(); pardiso_i.reserve(2 * V_N + 1);
-	pardiso_ia.clear(); pardiso_ia.reserve(2 * V_N + 1);
-	pardiso_ja.clear(); pardiso_ja.reserve(8 * V_N);
+	solver_i.clear(); solver_i.reserve(2 * V_N + 1);
+	solver_ia.clear(); solver_ia.reserve(2 * V_N + 1);
+	solver_ja.clear(); solver_ja.reserve(8 * V_N);
 	typedef Eigen::Triplet<int> T;
 	std::vector<T> tripletlist;
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		pardiso_ia.push_back(pardiso_ja.size());
+		solver_ia.push_back(solver_ja.size());
 		if (i < V_N)
 		{
 			auto vertex = mesh.vertex_handle(i);
-			vector<int> row_id;
+			std::vector<int> row_id;
 
 			row_id.push_back(i);
 			row_id.push_back(i + V_N);
@@ -154,15 +159,15 @@ void GAP::Pre_calculate()
 				row_id.push_back(id_neighbor);
 				row_id.push_back(id_neighbor + V_N);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
-			vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
+			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 
 			int dd = 0;
 
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				pardiso_ja.push_back(row_id[k]);
-				pardiso_i.push_back(i);
+				solver_ja.push_back(row_id[k]);
+				solver_i.push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -171,7 +176,7 @@ void GAP::Pre_calculate()
 		{
 			auto vertex = mesh.vertex_handle(i - V_N);
 
-			vector<int> row_id;
+			std::vector<int> row_id;
 
 			row_id.push_back(i);
 
@@ -180,15 +185,15 @@ void GAP::Pre_calculate()
 				int id_neighbor = it->idx() + V_N;
 				row_id.push_back(id_neighbor);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
-			vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
+			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 
 			int dd = 0;
 
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				pardiso_ja.push_back(row_id[k]);
-				pardiso_i.push_back(i);
+				solver_ja.push_back(row_id[k]);
+				solver_i.push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -198,7 +203,7 @@ void GAP::Pre_calculate()
 	find_id_in_rows.resize(2 * V_N, 2 * V_N);
 	find_id_in_rows.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
-	pardiso_ia.push_back(pardiso_ja.size());
+	solver_ia.push_back(solver_ja.size());
 
 	id_h00.resize(F_N); id_h01.resize(F_N); id_h02.resize(F_N); id_h03.resize(F_N); id_h04.resize(F_N); id_h05.resize(F_N);
 	id_h11.resize(F_N); id_h12.resize(F_N); id_h13.resize(F_N); id_h14.resize(F_N); id_h15.resize(F_N);
@@ -215,20 +220,20 @@ void GAP::Pre_calculate()
 		int min02 = std::min(f0, f2); int max02 = f0 + f2 - min02;
 		int min12 = std::min(f1, f2); int max12 = f1 + f2 - min12;
 
-		id_h00[i] = pardiso_ia[f0]; id_h01[i] = pardiso_ia[min01] + find_id_in_rows.coeff(min01, max01); id_h02[i] = pardiso_ia[min02] + find_id_in_rows.coeff(min02, max02);
-		id_h03[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f3); id_h04[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f4); id_h05[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f5);
+		id_h00[i] = solver_ia[f0]; id_h01[i] = solver_ia[min01] + find_id_in_rows.coeff(min01, max01); id_h02[i] = solver_ia[min02] + find_id_in_rows.coeff(min02, max02);
+		id_h03[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f3); id_h04[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f4); id_h05[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f5);
 
-		id_h11[i] = pardiso_ia[f1]; id_h12[i] = pardiso_ia[min12] + find_id_in_rows.coeff(min12, max12);
-		id_h13[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f3); id_h14[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f4); id_h15[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f5);
+		id_h11[i] = solver_ia[f1]; id_h12[i] = solver_ia[min12] + find_id_in_rows.coeff(min12, max12);
+		id_h13[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f3); id_h14[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f4); id_h15[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f5);
 
-		id_h22[i] = pardiso_ia[f2];
-		id_h23[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f3); id_h24[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f4); id_h25[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f5);
+		id_h22[i] = solver_ia[f2];
+		id_h23[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f3); id_h24[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f4); id_h25[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f5);
 
-		id_h33[i] = pardiso_ia[f3]; id_h34[i] = pardiso_ia[min01 + V_N] + find_id_in_rows.coeff(min01 + V_N, max01 + V_N); id_h35[i] = pardiso_ia[min02 + V_N] + find_id_in_rows.coeff(min02 + V_N, max02 + V_N);
+		id_h33[i] = solver_ia[f3]; id_h34[i] = solver_ia[min01 + V_N] + find_id_in_rows.coeff(min01 + V_N, max01 + V_N); id_h35[i] = solver_ia[min02 + V_N] + find_id_in_rows.coeff(min02 + V_N, max02 + V_N);
 
-		id_h44[i] = pardiso_ia[f4]; id_h45[i] = pardiso_ia[min12 + V_N] + find_id_in_rows.coeff(min12 + V_N, max12 + V_N);
+		id_h44[i] = solver_ia[f4]; id_h45[i] = solver_ia[min12 + V_N] + find_id_in_rows.coeff(min12 + V_N, max12 + V_N);
 
-		id_h55[i] = pardiso_ia[f5];
+		id_h55[i] = solver_ia[f5];
 	}
 }
 
@@ -317,40 +322,45 @@ void GAP::TutteOp()
 	}
 	pardiso_it.push_back(pardiso_jt.size());
 
-	if (pardiso != NULL)
+	if (solver != NULL)
 	{
-		delete pardiso;
-		pardiso = NULL;
+		delete solver;
+		solver = NULL;
 	}
-	pardiso = new PardisoSolver();
-	pardiso->ia = pardiso_it;
-	pardiso->ja = pardiso_jt;
-	pardiso->nnz = pardiso_jt.size();
-	pardiso->num = V_N;
 
-	pardiso->pardiso_init();
+#ifdef USE_PARDISO
+	solver = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	solver = new MKLPardisoSolver();
+#endif // USE_PARDISO
+	solver->ia = pardiso_it;
+	solver->ja = pardiso_jt;
+	solver->nnz = pardiso_jt.size();
+	solver->num = V_N;
 
-	pardiso->a = pardiso_t;
+	solver->pardiso_init();
 
-	pardiso->rhs = pardiso_tu;
-	pardiso->factorize();
+	solver->a = pardiso_t;
 
-	pardiso->pardiso_solver();
+	solver->rhs = pardiso_tu;
+	solver->factorize();
+
+	solver->pardiso_solver();
 
 	for (size_t i = 0; i < V_N; i++)
 	{
-		position_of_mesh(i) = (pardiso->result)[i];
+		position_of_mesh(i) = (solver->result)[i];
 	}
 
-	pardiso->rhs = pardiso_tv;
-	pardiso->pardiso_solver();
+	solver->rhs = pardiso_tv;
+	solver->pardiso_solver();
 	for (size_t i = 0; i < V_N; i++)
 	{
-		position_of_mesh(i + V_N) = (pardiso->result)[i];
+		position_of_mesh(i + V_N) = (solver->result)[i];
 	}
 
-	delete pardiso;
-	pardiso = NULL;
+	delete solver;
+	solver = NULL;
 }
 
 void GAP::init_area()
@@ -370,18 +380,22 @@ void GAP::init_area()
 
 void GAP::BPE()
 {
-	if (pardiso != NULL)
+	if (solver != NULL)
 	{
-		delete pardiso;
-		pardiso = NULL;
+		delete solver;
+		solver = NULL;
 	}
-	pardiso = new PardisoSolver();
-	pardiso->ia = pardiso_ia;
-	pardiso->ja = pardiso_ja;
-	pardiso->a.resize(pardiso_ja.size());
-	pardiso->nnz = pardiso_ja.size();
-	pardiso->num = 2 * V_N;
-	pardiso->pardiso_init();
+#ifdef USE_PARDISO
+	solver = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	solver = new MKLPardisoSolver();
+#endif // USE_PARDISO
+	solver->ia = solver_ia;
+	solver->ja = solver_ja;
+	solver->a.resize(solver_ja.size());
+	solver->nnz = solver_ja.size();
+	solver->num = 2 * V_N;
+	solver->pardiso_init();
 	std::vector<double> energy_area_process;
 	energy_area_process.reserve(MAX_ITER_NUM);
 	Energysource();
@@ -477,8 +491,8 @@ void GAP::BPE()
 	time_end = clock();
 	time_consumption = (time_end - time_beg) / 1000.0;
 
-	delete pardiso;
-	pardiso = NULL;
+	delete solver;
+	solver = NULL;
 }
 
 void GAP::Energysource()
@@ -517,7 +531,7 @@ void GAP::Energysource()
 
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
-			cout << "det " << det << endl;
+			std::cout << "det " << det << std::endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 
@@ -535,13 +549,13 @@ void GAP::Update_source_same_t()
 	double t_min = 1;
 	int geqK = 0;
 
-	vector<double> all_s0; all_s0.resize(F_N);
-	vector<double> all_s1; all_s1.resize(F_N);
+	std::vector<double> all_s0; all_s0.resize(F_N);
+	std::vector<double> all_s1; all_s1.resize(F_N);
 
-	vector<double> all_w00; all_w00.resize(F_N);
-	vector<double> all_w01; all_w01.resize(F_N);
-	vector<double> all_w10; all_w10.resize(F_N);
-	vector<double> all_w11; all_w11.resize(F_N);
+	std::vector<double> all_w00; all_w00.resize(F_N);
+	std::vector<double> all_w01; all_w01.resize(F_N);
+	std::vector<double> all_w10; all_w10.resize(F_N);
+	std::vector<double> all_w11; all_w11.resize(F_N);
 
 	int f0, f1, f2;
 	double x0, y0, x1, y1, x2, y2;
@@ -687,10 +701,10 @@ void GAP::SLIM()
 		h55;
 	double* position = position_of_mesh.data();
 
-	int nnz = pardiso_ja.size();
-	pardiso_a.clear(); pardiso_b.clear();
-	pardiso_a.resize(nnz, 0.0);
-	pardiso_b.resize(2 * V_N, 0.0);
+	int nnz = solver_ja.size();
+	solver_a.clear(); solver_b.clear();
+	solver_a.resize(nnz, 0.0);
+	solver_b.resize(2 * V_N, 0.0);
 
 	for (int i = 0; i < F_N; ++i)
 	{
@@ -759,41 +773,41 @@ void GAP::SLIM()
 		r3 = area_now * ((1 + 1 / (det * det)) * j11 - tr * j00 / (det * det * det));
 
 
-		pardiso_b[f0] -= r0 * d00 + r1 * d10;
-		pardiso_b[f1] -= r0 * d01 + r1 * d11;
-		pardiso_b[f2] -= r0 * d02 + r1 * d12;
-		pardiso_b[f0 + V_N] -= r2 * d00 + r3 * d10;
-		pardiso_b[f1 + V_N] -= r2 * d01 + r3 * d11;
-		pardiso_b[f2 + V_N] -= r2 * d02 + r3 * d12;
+		solver_b[f0] -= r0 * d00 + r1 * d10;
+		solver_b[f1] -= r0 * d01 + r1 * d11;
+		solver_b[f2] -= r0 * d02 + r1 * d12;
+		solver_b[f0 + V_N] -= r2 * d00 + r3 * d10;
+		solver_b[f1 + V_N] -= r2 * d01 + r3 * d11;
+		solver_b[f2 + V_N] -= r2 * d02 + r3 * d12;
 
-		pardiso_a[id_h00[i]] += h00; pardiso_a[id_h01[i]] += h01; pardiso_a[id_h02[i]] += h02; pardiso_a[id_h03[i]] += h03; pardiso_a[id_h04[i]] += h04; pardiso_a[id_h05[i]] += h05;
-		pardiso_a[id_h11[i]] += h11; pardiso_a[id_h12[i]] += h12; pardiso_a[id_h13[i]] += h13; pardiso_a[id_h14[i]] += h14; pardiso_a[id_h15[i]] += h15;
-		pardiso_a[id_h22[i]] += h22; pardiso_a[id_h23[i]] += h23; pardiso_a[id_h24[i]] += h24; pardiso_a[id_h25[i]] += h25;
-		pardiso_a[id_h33[i]] += h33; pardiso_a[id_h34[i]] += h34; pardiso_a[id_h35[i]] += h35;
-		pardiso_a[id_h44[i]] += h44; pardiso_a[id_h45[i]] += h45;
-		pardiso_a[id_h55[i]] += h55;
+		solver_a[id_h00[i]] += h00; solver_a[id_h01[i]] += h01; solver_a[id_h02[i]] += h02; solver_a[id_h03[i]] += h03; solver_a[id_h04[i]] += h04; solver_a[id_h05[i]] += h05;
+		solver_a[id_h11[i]] += h11; solver_a[id_h12[i]] += h12; solver_a[id_h13[i]] += h13; solver_a[id_h14[i]] += h14; solver_a[id_h15[i]] += h15;
+		solver_a[id_h22[i]] += h22; solver_a[id_h23[i]] += h23; solver_a[id_h24[i]] += h24; solver_a[id_h25[i]] += h25;
+		solver_a[id_h33[i]] += h33; solver_a[id_h34[i]] += h34; solver_a[id_h35[i]] += h35;
+		solver_a[id_h44[i]] += h44; solver_a[id_h45[i]] += h45;
+		solver_a[id_h55[i]] += h55;
 
 	}
 
-	pardiso->a = pardiso_a;
-	pardiso->rhs = pardiso_b;
+	solver->a = solver_a;
+	solver->rhs = solver_b;
 
-	pardiso->factorize();
-	pardiso->pardiso_solver();
+	solver->factorize();
+	solver->pardiso_solver();
 
-	std::vector<double> result_d = pardiso->result;
+	std::vector<double> result_d = solver->result;
 
 	Eigen::VectorXd negative_grad(2 * V_N), d(2 * V_N);
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		negative_grad(i) = pardiso_b[i];
+		negative_grad(i) = solver_b[i];
 		d(i) = result_d[i];
 	}
 
 	double temp_t;
 	max_step(position_of_mesh, d, temp_t);
 
-	double alpha = min(1.0, 0.8 * temp_t);
+	double alpha = std::min(1.0, 0.8 * temp_t);
 	backtracking_line_search(position_of_mesh, d, negative_grad, alpha);
 	position_of_mesh += alpha * d;
 
@@ -802,7 +816,7 @@ void GAP::SLIM()
 
 void GAP::max_step(const Eigen::VectorXd& xx, const Eigen::VectorXd& dd, double& step)
 {
-	double temp_t = numeric_limits<double>::infinity();
+	double temp_t = std::numeric_limits<double>::infinity();
 	int f0, f1, f2;
 	double a, b, c, b1, b2, tt, tt1, tt2;
 	double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
@@ -978,10 +992,10 @@ void GAP::CM()
 		h44, h45,
 		h55;
 	double* position = position_of_mesh.data();
-	int nnz = pardiso_ja.size();
-	pardiso_a.clear(); pardiso_b.clear();
-	pardiso_a.resize(nnz, 0.0);
-	pardiso_b.resize(2 * V_N, 0.0);
+	int nnz = solver_ja.size();
+	solver_a.clear(); solver_b.clear();
+	solver_a.resize(nnz, 0.0);
+	solver_b.resize(2 * V_N, 0.0);
 
 	for (int i = 0; i < F_N; ++i)
 	{
@@ -1080,37 +1094,37 @@ void GAP::CM()
 
 		u = aa * walpha; v = bb * wbeta;
 
-		pardiso_b[f0] -= (u * a1x0 + v * a2x0);
-		pardiso_b[f1] -= (u * a1x1 + v * a2x1);
-		pardiso_b[f2] -= (u * a1x2 + v * a2x2);
-		pardiso_b[f0 + V_N] -= (u * a1x3 + v * a2x3);
-		pardiso_b[f1 + V_N] -= (u * a1x4 + v * a2x4);
-		pardiso_b[f2 + V_N] -= (u * a1x5 + v * a2x5);
+		solver_b[f0] -= (u * a1x0 + v * a2x0);
+		solver_b[f1] -= (u * a1x1 + v * a2x1);
+		solver_b[f2] -= (u * a1x2 + v * a2x2);
+		solver_b[f0 + V_N] -= (u * a1x3 + v * a2x3);
+		solver_b[f1 + V_N] -= (u * a1x4 + v * a2x4);
+		solver_b[f2 + V_N] -= (u * a1x5 + v * a2x5);
 
-		pardiso_a[id_h00[i]] += h00; pardiso_a[id_h01[i]] += h01; pardiso_a[id_h02[i]] += h02; pardiso_a[id_h03[i]] += h03; pardiso_a[id_h04[i]] += h04; pardiso_a[id_h05[i]] += h05;
-		pardiso_a[id_h11[i]] += h11; pardiso_a[id_h12[i]] += h12; pardiso_a[id_h13[i]] += h13; pardiso_a[id_h14[i]] += h14; pardiso_a[id_h15[i]] += h15;
-		pardiso_a[id_h22[i]] += h22; pardiso_a[id_h23[i]] += h23; pardiso_a[id_h24[i]] += h24; pardiso_a[id_h25[i]] += h25;
-		pardiso_a[id_h33[i]] += h33; pardiso_a[id_h34[i]] += h34; pardiso_a[id_h35[i]] += h35;
-		pardiso_a[id_h44[i]] += h44; pardiso_a[id_h45[i]] += h45;
-		pardiso_a[id_h55[i]] += h55;
+		solver_a[id_h00[i]] += h00; solver_a[id_h01[i]] += h01; solver_a[id_h02[i]] += h02; solver_a[id_h03[i]] += h03; solver_a[id_h04[i]] += h04; solver_a[id_h05[i]] += h05;
+		solver_a[id_h11[i]] += h11; solver_a[id_h12[i]] += h12; solver_a[id_h13[i]] += h13; solver_a[id_h14[i]] += h14; solver_a[id_h15[i]] += h15;
+		solver_a[id_h22[i]] += h22; solver_a[id_h23[i]] += h23; solver_a[id_h24[i]] += h24; solver_a[id_h25[i]] += h25;
+		solver_a[id_h33[i]] += h33; solver_a[id_h34[i]] += h34; solver_a[id_h35[i]] += h35;
+		solver_a[id_h44[i]] += h44; solver_a[id_h45[i]] += h45;
+		solver_a[id_h55[i]] += h55;
 	}
 
-	pardiso->a = pardiso_a;
-	pardiso->rhs = pardiso_b;
+	solver->a = solver_a;
+	solver->rhs = solver_b;
 
-	pardiso->factorize();
-	pardiso->pardiso_solver();
+	solver->factorize();
+	solver->pardiso_solver();
 
-	vector<double> result_d = pardiso->result;
+	std::vector<double> result_d = solver->result;
 
 	Eigen::VectorXd negative_grad(2 * V_N), d(2 * V_N);
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		negative_grad(i) = pardiso_b[i];
+		negative_grad(i) = solver_b[i];
 		d(i) = result_d[i];
 	}
 
-	pardiso->free_numerical_factorization_memory();
+	solver->free_numerical_factorization_memory();
 
 	double temp_t;
 	max_step(position_of_mesh, d, temp_t);
@@ -1159,11 +1173,11 @@ bool GAP::add1p(bool startfromtutte)
 	p_position_of_mesh.clear();
 	p_V_N.clear();
 	p_F_N.clear();
-	p_pardiso_i.clear();
-	p_pardiso_ia.clear();
-	p_pardiso_ja.clear();
-	p_pardiso_a.clear();
-	p_pardiso_b.clear();
+	p_solver_i.clear();
+	p_solver_ia.clear();
+	p_solver_ja.clear();
+	p_solver_a.clear();
+	p_solver_b.clear();
 	p_id_h00.clear(); p_id_h01.clear(); p_id_h02.clear(); p_id_h03.clear(); p_id_h04.clear(); p_id_h05.clear();
 	p_id_h11.clear(); p_id_h12.clear(); p_id_h13.clear(); p_id_h14.clear(); p_id_h15.clear();
 	p_id_h22.clear(); p_id_h23.clear(); p_id_h24.clear(); p_id_h25.clear();
@@ -1179,7 +1193,7 @@ bool GAP::add1p(bool startfromtutte)
 	p_energy_uniform.clear();
 	p_energy_area.clear();
 	p_energy_prev_seam.clear();
-	p_pardiso.clear();
+	p_solver.clear();
 
 	p_v_seam.resize(step, v_seam);
 	p_e_seam.resize(step, e_seam);
@@ -1192,11 +1206,11 @@ bool GAP::add1p(bool startfromtutte)
 	p_position_of_mesh.resize(step, position_of_mesh);
 	p_V_N.resize(step, V_N);
 	p_F_N.resize(step, F_N);
-	p_pardiso_i.resize(step, pardiso_i);
-	p_pardiso_ia.resize(step, pardiso_ia);
-	p_pardiso_ja.resize(step, pardiso_ja);
-	p_pardiso_a.resize(step, pardiso_a);
-	p_pardiso_b.resize(step, pardiso_b);
+	p_solver_i.resize(step, solver_i);
+	p_solver_ia.resize(step, solver_ia);
+	p_solver_ja.resize(step, solver_ja);
+	p_solver_a.resize(step, solver_a);
+	p_solver_b.resize(step, solver_b);
 
 	p_id_h00.resize(step, id_h00); p_id_h01.resize(step, id_h01); p_id_h02.resize(step, id_h02); p_id_h03.resize(step, id_h03); p_id_h04.resize(step, id_h04); p_id_h05.resize(step, id_h05);
 	p_id_h11.resize(step, id_h11); p_id_h12.resize(step, id_h12); p_id_h13.resize(step, id_h13); p_id_h14.resize(step, id_h14); p_id_h15.resize(step, id_h15);
@@ -1213,7 +1227,7 @@ bool GAP::add1p(bool startfromtutte)
 	p_energy_uniform.resize(step, energy_uniform);
 	p_energy_area.resize(step, energy_area);
 	p_energy_prev_seam.resize(step, energy_area);
-	p_pardiso.resize(step, pardiso);
+	p_solver.resize(step, solver);
 
 	std::vector<std::vector<int>> p_path_1p2seam_v(step);
 	std::vector<std::vector<int>> p_path_1p2seam_e(step);
@@ -1423,15 +1437,15 @@ bool GAP::add1p(bool startfromtutte)
 
 void GAP::rePre_calculate(int N)
 {
-	p_pardiso_i[N].clear(); p_pardiso_i[N].reserve(2 * p_V_N[N] + 1);
-	p_pardiso_ia[N].clear(); p_pardiso_ia[N].reserve(2 * p_V_N[N] + 1);
-	p_pardiso_ja[N].clear(); p_pardiso_ja[N].reserve(8 * p_V_N[N]);
+	p_solver_i[N].clear(); p_solver_i[N].reserve(2 * p_V_N[N] + 1);
+	p_solver_ia[N].clear(); p_solver_ia[N].reserve(2 * p_V_N[N] + 1);
+	p_solver_ja[N].clear(); p_solver_ja[N].reserve(8 * p_V_N[N]);
 
 	typedef Eigen::Triplet<int> T;
 	std::vector<T> tripletlist;
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		p_pardiso_ia[N].push_back(p_pardiso_ja[N].size());
+		p_solver_ia[N].push_back(p_solver_ja[N].size());
 		if (i < p_V_N[N])
 		{
 			std::vector<int> row_id;
@@ -1442,13 +1456,13 @@ void GAP::rePre_calculate(int N)
 				row_id.push_back(vv);
 				row_id.push_back(vv + p_V_N[N]);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
 			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 			int dd = 0;
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				p_pardiso_ja[N].push_back(row_id[k]);
-				p_pardiso_i[N].push_back(i);
+				p_solver_ja[N].push_back(row_id[k]);
+				p_solver_i[N].push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -1461,13 +1475,13 @@ void GAP::rePre_calculate(int N)
 			{
 				row_id.push_back(vv + p_V_N[N]);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
 			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 			int dd = 0;
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				p_pardiso_ja[N].push_back(row_id[k]);
-				p_pardiso_i[N].push_back(i);
+				p_solver_ja[N].push_back(row_id[k]);
+				p_solver_i[N].push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -1477,7 +1491,7 @@ void GAP::rePre_calculate(int N)
 	find_id_in_rows.resize(2 * p_V_N[N], 2 * p_V_N[N]);
 	find_id_in_rows.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
-	p_pardiso_ia[N].push_back(p_pardiso_ja[N].size());
+	p_solver_ia[N].push_back(p_solver_ja[N].size());
 
 	p_id_h00[N].resize(p_F_N[N]); p_id_h01[N].resize(p_F_N[N]); p_id_h02[N].resize(p_F_N[N]); p_id_h03[N].resize(p_F_N[N]); p_id_h04[N].resize(p_F_N[N]); p_id_h05[N].resize(p_F_N[N]);
 	p_id_h11[N].resize(p_F_N[N]); p_id_h12[N].resize(p_F_N[N]); p_id_h13[N].resize(p_F_N[N]); p_id_h14[N].resize(p_F_N[N]); p_id_h15[N].resize(p_F_N[N]);
@@ -1490,42 +1504,46 @@ void GAP::rePre_calculate(int N)
 	{
 		int f0 = p_F0[N][i]; int f1 = p_F1[N][i]; int f2 = p_F2[N][i]; int f3 = p_F0[N][i] + p_V_N[N]; int f4 = p_F1[N][i] + p_V_N[N]; int f5 = p_F2[N][i] + p_V_N[N];
 
-		int min01 = min(f0, f1); int max01 = f0 + f1 - min01;
-		int min02 = min(f0, f2); int max02 = f0 + f2 - min02;
-		int min12 = min(f1, f2); int max12 = f1 + f2 - min12;
+		int min01 = std::min(f0, f1); int max01 = f0 + f1 - min01;
+		int min02 = std::min(f0, f2); int max02 = f0 + f2 - min02;
+		int min12 = std::min(f1, f2); int max12 = f1 + f2 - min12;
 
-		p_id_h00[N][i] = p_pardiso_ia[N][f0]; p_id_h01[N][i] = p_pardiso_ia[N][min01] + find_id_in_rows.coeff(min01, max01); p_id_h02[N][i] = p_pardiso_ia[N][min02] + find_id_in_rows.coeff(min02, max02);
-		p_id_h03[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f3); p_id_h04[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f4); p_id_h05[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f5);
+		p_id_h00[N][i] = p_solver_ia[N][f0]; p_id_h01[N][i] = p_solver_ia[N][min01] + find_id_in_rows.coeff(min01, max01); p_id_h02[N][i] = p_solver_ia[N][min02] + find_id_in_rows.coeff(min02, max02);
+		p_id_h03[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f3); p_id_h04[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f4); p_id_h05[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f5);
 
-		p_id_h11[N][i] = p_pardiso_ia[N][f1]; p_id_h12[N][i] = p_pardiso_ia[N][min12] + find_id_in_rows.coeff(min12, max12);
-		p_id_h13[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f3); p_id_h14[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f4); p_id_h15[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f5);
+		p_id_h11[N][i] = p_solver_ia[N][f1]; p_id_h12[N][i] = p_solver_ia[N][min12] + find_id_in_rows.coeff(min12, max12);
+		p_id_h13[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f3); p_id_h14[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f4); p_id_h15[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f5);
 
-		p_id_h22[N][i] = p_pardiso_ia[N][f2];
-		p_id_h23[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f3); p_id_h24[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f4); p_id_h25[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f5);
+		p_id_h22[N][i] = p_solver_ia[N][f2];
+		p_id_h23[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f3); p_id_h24[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f4); p_id_h25[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f5);
 
-		p_id_h33[N][i] = p_pardiso_ia[N][f3]; p_id_h34[N][i] = p_pardiso_ia[N][min01 + p_V_N[N]] + find_id_in_rows.coeff(min01 + p_V_N[N], max01 + p_V_N[N]); p_id_h35[N][i] = p_pardiso_ia[N][min02 + p_V_N[N]] + find_id_in_rows.coeff(min02 + p_V_N[N], max02 + p_V_N[N]);
+		p_id_h33[N][i] = p_solver_ia[N][f3]; p_id_h34[N][i] = p_solver_ia[N][min01 + p_V_N[N]] + find_id_in_rows.coeff(min01 + p_V_N[N], max01 + p_V_N[N]); p_id_h35[N][i] = p_solver_ia[N][min02 + p_V_N[N]] + find_id_in_rows.coeff(min02 + p_V_N[N], max02 + p_V_N[N]);
 
-		p_id_h44[N][i] = p_pardiso_ia[N][f4]; p_id_h45[N][i] = p_pardiso_ia[N][min12 + p_V_N[N]] + find_id_in_rows.coeff(min12 + p_V_N[N], max12 + p_V_N[N]);
+		p_id_h44[N][i] = p_solver_ia[N][f4]; p_id_h45[N][i] = p_solver_ia[N][min12 + p_V_N[N]] + find_id_in_rows.coeff(min12 + p_V_N[N], max12 + p_V_N[N]);
 
-		p_id_h55[N][i] = p_pardiso_ia[N][f5];
+		p_id_h55[N][i] = p_solver_ia[N][f5];
 	}
 }
 
 void GAP::BPE(int N)
 {
-	if (p_pardiso[N] != NULL)
+	if (p_solver[N] != NULL)
 	{
-		delete p_pardiso[N];
-		p_pardiso[N] = NULL;
+		delete p_solver[N];
+		p_solver[N] = NULL;
 	}
-	p_pardiso[N] = new PardisoSolver();
-	p_pardiso[N]->ia = p_pardiso_ia[N];
-	p_pardiso[N]->ja = p_pardiso_ja[N];
-	p_pardiso[N]->a.resize(p_pardiso_ja[N].size());
-	p_pardiso[N]->nnz = p_pardiso_ja[N].size();
-	p_pardiso[N]->num = 2 * p_V_N[N];
+#ifdef USE_PARDISO
+	p_solver[N] = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	p_solver[N] = new MKLPardisoSolver();
+#endif // USE_PARDISO
+	p_solver[N]->ia = p_solver_ia[N];
+	p_solver[N]->ja = p_solver_ja[N];
+	p_solver[N]->a.resize(p_solver_ja[N].size());
+	p_solver[N]->nnz = p_solver_ja[N].size();
+	p_solver[N]->num = 2 * p_V_N[N];
 
-	p_pardiso[N]->pardiso_init();
+	p_solver[N]->pardiso_init();
 
 	std::vector<double> energy_area_process;
 	energy_area_process.reserve(MAX_ITER_NUM);
@@ -1625,8 +1643,8 @@ void GAP::BPE(int N)
 	time_end = clock();
 	time_consumption = (time_end - time_beg) / 1000.0;
 
-	delete p_pardiso[N];
-	p_pardiso[N] = NULL;
+	delete p_solver[N];
+	p_solver[N] = NULL;
 }
 
 void GAP::Energysource(int N)
@@ -1666,7 +1684,7 @@ void GAP::Energysource(int N)
 
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
-			cout << "det " << det << endl;
+			std::cout << "det " << det << std::endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 
@@ -1684,13 +1702,13 @@ void GAP::Update_source_same_t(int N)
 	double t_min = 1;
 	int geqK = 0;
 
-	vector<double> all_s0; all_s0.resize(p_F_N[N]);
-	vector<double> all_s1; all_s1.resize(p_F_N[N]);
+	std::vector<double> all_s0; all_s0.resize(p_F_N[N]);
+	std::vector<double> all_s1; all_s1.resize(p_F_N[N]);
 
-	vector<double> all_w00; all_w00.resize(p_F_N[N]);
-	vector<double> all_w01; all_w01.resize(p_F_N[N]);
-	vector<double> all_w10; all_w10.resize(p_F_N[N]);
-	vector<double> all_w11; all_w11.resize(p_F_N[N]);
+	std::vector<double> all_w00; all_w00.resize(p_F_N[N]);
+	std::vector<double> all_w01; all_w01.resize(p_F_N[N]);
+	std::vector<double> all_w10; all_w10.resize(p_F_N[N]);
+	std::vector<double> all_w11; all_w11.resize(p_F_N[N]);
 
 
 	int f0, f1, f2;
@@ -1826,10 +1844,10 @@ void GAP::SLIM(int N)
 		h55;
 	double* position = p_position_of_mesh[N].data();
 
-	int nnz = p_pardiso_ja[N].size();
-	p_pardiso_a[N].clear(); p_pardiso_b[N].clear();
-	p_pardiso_a[N].resize(nnz, 0.0);
-	p_pardiso_b[N].resize(2 * p_V_N[N], 0.0);
+	int nnz = p_solver_ja[N].size();
+	p_solver_a[N].clear(); p_solver_b[N].clear();
+	p_solver_a[N].resize(nnz, 0.0);
+	p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
 	for (int i = 0; i < p_F_N[N]; ++i)
 	{
@@ -1897,41 +1915,41 @@ void GAP::SLIM(int N)
 		r3 = area_now * ((1 + 1 / (det * det)) * j11 - tr * j00 / (det * det * det));
 
 
-		p_pardiso_b[N][f0] -= r0 * d00 + r1 * d10;
-		p_pardiso_b[N][f1] -= r0 * d01 + r1 * d11;
-		p_pardiso_b[N][f2] -= r0 * d02 + r1 * d12;
-		p_pardiso_b[N][f0 + p_V_N[N]] -= r2 * d00 + r3 * d10;
-		p_pardiso_b[N][f1 + p_V_N[N]] -= r2 * d01 + r3 * d11;
-		p_pardiso_b[N][f2 + p_V_N[N]] -= r2 * d02 + r3 * d12;
+		p_solver_b[N][f0] -= r0 * d00 + r1 * d10;
+		p_solver_b[N][f1] -= r0 * d01 + r1 * d11;
+		p_solver_b[N][f2] -= r0 * d02 + r1 * d12;
+		p_solver_b[N][f0 + p_V_N[N]] -= r2 * d00 + r3 * d10;
+		p_solver_b[N][f1 + p_V_N[N]] -= r2 * d01 + r3 * d11;
+		p_solver_b[N][f2 + p_V_N[N]] -= r2 * d02 + r3 * d12;
 
-		p_pardiso_a[N][p_id_h00[N][i]] += h00; p_pardiso_a[N][p_id_h01[N][i]] += h01; p_pardiso_a[N][p_id_h02[N][i]] += h02; p_pardiso_a[N][p_id_h03[N][i]] += h03; p_pardiso_a[N][p_id_h04[N][i]] += h04; p_pardiso_a[N][p_id_h05[N][i]] += h05;
-		p_pardiso_a[N][p_id_h11[N][i]] += h11; p_pardiso_a[N][p_id_h12[N][i]] += h12; p_pardiso_a[N][p_id_h13[N][i]] += h13; p_pardiso_a[N][p_id_h14[N][i]] += h14; p_pardiso_a[N][p_id_h15[N][i]] += h15;
-		p_pardiso_a[N][p_id_h22[N][i]] += h22; p_pardiso_a[N][p_id_h23[N][i]] += h23; p_pardiso_a[N][p_id_h24[N][i]] += h24; p_pardiso_a[N][p_id_h25[N][i]] += h25;
-		p_pardiso_a[N][p_id_h33[N][i]] += h33; p_pardiso_a[N][p_id_h34[N][i]] += h34; p_pardiso_a[N][p_id_h35[N][i]] += h35;
-		p_pardiso_a[N][p_id_h44[N][i]] += h44; p_pardiso_a[N][p_id_h45[N][i]] += h45;
-		p_pardiso_a[N][p_id_h55[N][i]] += h55;
+		p_solver_a[N][p_id_h00[N][i]] += h00; p_solver_a[N][p_id_h01[N][i]] += h01; p_solver_a[N][p_id_h02[N][i]] += h02; p_solver_a[N][p_id_h03[N][i]] += h03; p_solver_a[N][p_id_h04[N][i]] += h04; p_solver_a[N][p_id_h05[N][i]] += h05;
+		p_solver_a[N][p_id_h11[N][i]] += h11; p_solver_a[N][p_id_h12[N][i]] += h12; p_solver_a[N][p_id_h13[N][i]] += h13; p_solver_a[N][p_id_h14[N][i]] += h14; p_solver_a[N][p_id_h15[N][i]] += h15;
+		p_solver_a[N][p_id_h22[N][i]] += h22; p_solver_a[N][p_id_h23[N][i]] += h23; p_solver_a[N][p_id_h24[N][i]] += h24; p_solver_a[N][p_id_h25[N][i]] += h25;
+		p_solver_a[N][p_id_h33[N][i]] += h33; p_solver_a[N][p_id_h34[N][i]] += h34; p_solver_a[N][p_id_h35[N][i]] += h35;
+		p_solver_a[N][p_id_h44[N][i]] += h44; p_solver_a[N][p_id_h45[N][i]] += h45;
+		p_solver_a[N][p_id_h55[N][i]] += h55;
 
 	}
 
-	p_pardiso[N]->a = p_pardiso_a[N];
-	p_pardiso[N]->rhs = p_pardiso_b[N];
+	p_solver[N]->a = p_solver_a[N];
+	p_solver[N]->rhs = p_solver_b[N];
 
-	p_pardiso[N]->factorize();
-	p_pardiso[N]->pardiso_solver();
+	p_solver[N]->factorize();
+	p_solver[N]->pardiso_solver();
 
-	std::vector<double> result_d = p_pardiso[N]->result;
+	std::vector<double> result_d = p_solver[N]->result;
 
 	Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		negative_grad(i) = p_pardiso_b[N][i];
+		negative_grad(i) = p_solver_b[N][i];
 		d(i) = result_d[i];
 	}
 
 	double temp_t;
 	max_step(p_position_of_mesh[N], d, temp_t, N);
 
-	double alpha = min(1.0, 0.8 * temp_t);
+	double alpha = std::min(1.0, 0.8 * temp_t);
 	backtracking_line_search(p_position_of_mesh[N], d, negative_grad, alpha, N);
 	p_position_of_mesh[N] += alpha * d;
 
@@ -1940,7 +1958,7 @@ void GAP::SLIM(int N)
 
 void GAP::max_step(const Eigen::VectorXd& xx, const Eigen::VectorXd& dd, double& step, int N)
 {
-	double temp_t = numeric_limits<double>::infinity();
+	double temp_t = std::numeric_limits<double>::infinity();
 	int f0, f1, f2;
 	double a, b, c, b1, b2, tt, tt1, tt2;
 	double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
@@ -2062,10 +2080,10 @@ void GAP::CM(int N)
 		h44, h45,
 		h55;
 	double* position = p_position_of_mesh[N].data();
-	int nnz = p_pardiso_ja[N].size();
-	p_pardiso_a[N].clear(); p_pardiso_b[N].clear();
-	p_pardiso_a[N].resize(nnz, 0.0);
-	p_pardiso_b[N].resize(2 * p_V_N[N], 0.0);
+	int nnz = p_solver_ja[N].size();
+	p_solver_a[N].clear(); p_solver_b[N].clear();
+	p_solver_a[N].resize(nnz, 0.0);
+	p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
 	for (int i = 0; i < p_F_N[N]; ++i)
 	{
@@ -2164,37 +2182,37 @@ void GAP::CM(int N)
 
 		u = aa * walpha; v = bb * wbeta;
 
-		p_pardiso_b[N][f0] -= (u * a1x0 + v * a2x0);
-		p_pardiso_b[N][f1] -= (u * a1x1 + v * a2x1);
-		p_pardiso_b[N][f2] -= (u * a1x2 + v * a2x2);
-		p_pardiso_b[N][f0 + p_V_N[N]] -= (u * a1x3 + v * a2x3);
-		p_pardiso_b[N][f1 + p_V_N[N]] -= (u * a1x4 + v * a2x4);
-		p_pardiso_b[N][f2 + p_V_N[N]] -= (u * a1x5 + v * a2x5);
+		p_solver_b[N][f0] -= (u * a1x0 + v * a2x0);
+		p_solver_b[N][f1] -= (u * a1x1 + v * a2x1);
+		p_solver_b[N][f2] -= (u * a1x2 + v * a2x2);
+		p_solver_b[N][f0 + p_V_N[N]] -= (u * a1x3 + v * a2x3);
+		p_solver_b[N][f1 + p_V_N[N]] -= (u * a1x4 + v * a2x4);
+		p_solver_b[N][f2 + p_V_N[N]] -= (u * a1x5 + v * a2x5);
 
-		p_pardiso_a[N][p_id_h00[N][i]] += h00; p_pardiso_a[N][p_id_h01[N][i]] += h01; p_pardiso_a[N][p_id_h02[N][i]] += h02; p_pardiso_a[N][p_id_h03[N][i]] += h03; p_pardiso_a[N][p_id_h04[N][i]] += h04; p_pardiso_a[N][p_id_h05[N][i]] += h05;
-		p_pardiso_a[N][p_id_h11[N][i]] += h11; p_pardiso_a[N][p_id_h12[N][i]] += h12; p_pardiso_a[N][p_id_h13[N][i]] += h13; p_pardiso_a[N][p_id_h14[N][i]] += h14; p_pardiso_a[N][p_id_h15[N][i]] += h15;
-		p_pardiso_a[N][p_id_h22[N][i]] += h22; p_pardiso_a[N][p_id_h23[N][i]] += h23; p_pardiso_a[N][p_id_h24[N][i]] += h24; p_pardiso_a[N][p_id_h25[N][i]] += h25;
-		p_pardiso_a[N][p_id_h33[N][i]] += h33; p_pardiso_a[N][p_id_h34[N][i]] += h34; p_pardiso_a[N][p_id_h35[N][i]] += h35;
-		p_pardiso_a[N][p_id_h44[N][i]] += h44; p_pardiso_a[N][p_id_h45[N][i]] += h45;
-		p_pardiso_a[N][p_id_h55[N][i]] += h55;
+		p_solver_a[N][p_id_h00[N][i]] += h00; p_solver_a[N][p_id_h01[N][i]] += h01; p_solver_a[N][p_id_h02[N][i]] += h02; p_solver_a[N][p_id_h03[N][i]] += h03; p_solver_a[N][p_id_h04[N][i]] += h04; p_solver_a[N][p_id_h05[N][i]] += h05;
+		p_solver_a[N][p_id_h11[N][i]] += h11; p_solver_a[N][p_id_h12[N][i]] += h12; p_solver_a[N][p_id_h13[N][i]] += h13; p_solver_a[N][p_id_h14[N][i]] += h14; p_solver_a[N][p_id_h15[N][i]] += h15;
+		p_solver_a[N][p_id_h22[N][i]] += h22; p_solver_a[N][p_id_h23[N][i]] += h23; p_solver_a[N][p_id_h24[N][i]] += h24; p_solver_a[N][p_id_h25[N][i]] += h25;
+		p_solver_a[N][p_id_h33[N][i]] += h33; p_solver_a[N][p_id_h34[N][i]] += h34; p_solver_a[N][p_id_h35[N][i]] += h35;
+		p_solver_a[N][p_id_h44[N][i]] += h44; p_solver_a[N][p_id_h45[N][i]] += h45;
+		p_solver_a[N][p_id_h55[N][i]] += h55;
 	}
 
-	p_pardiso[N]->a = p_pardiso_a[N];
-	p_pardiso[N]->rhs = p_pardiso_b[N];
+	p_solver[N]->a = p_solver_a[N];
+	p_solver[N]->rhs = p_solver_b[N];
 
-	p_pardiso[N]->factorize();
-	p_pardiso[N]->pardiso_solver();
+	p_solver[N]->factorize();
+	p_solver[N]->pardiso_solver();
 
-	vector<double> result_d = p_pardiso[N]->result;
+	std::vector<double> result_d = p_solver[N]->result;
 
 	Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		negative_grad(i) = p_pardiso_b[N][i];
+		negative_grad(i) = p_solver_b[N][i];
 		d(i) = result_d[i];
 	}
 
-	p_pardiso[N]->free_numerical_factorization_memory();
+	p_solver[N]->free_numerical_factorization_memory();
 
 	double temp_t;
 	max_step(p_position_of_mesh[N], d, temp_t, N);
@@ -2233,15 +2251,6 @@ void GAP::GenFirstCut()
 		unit = MCache.avg_el;
 
 	ClassifyFeaturePoints(FixThreshold*unit);
-	std::ofstream fix("fix.txt");
-	for (auto a : FixPoints)
-		fix << a << std::endl;
-	fix.close();
-	std::ofstream cand("cand.txt");
-	for (auto a : CanditatePoints)
-		cand << a << std::endl;
-	cand.close();
-
 	std::vector<std::vector<int>> ForbiddenArea;
 	std::vector<double> RadiusInfo(CanditatePoints.size(), GAPForBiddenRadius*unit);
 	for (int i = 0; i < CanditatePoints.size(); i++)
@@ -2308,14 +2317,6 @@ void GAP::GenFirstCut()
 		{
 			RadiusInfo[i] -= flag[i]*unit;
 		}
-		std::ofstream out(std::to_string(m) + ".txt");
-		out << "VERTICES" << std::endl;
-		for (int i = 0; i < ForbiddenArea.size(); i++)
-		{
-			if (ForbiddenArea[i].size() != 0)
-				out << i << std::endl;
-		}
-		out.close();
 		m++;
 		}
 	for (int i = 0; i < RadiusInfo.size(); i++)
@@ -2392,16 +2393,7 @@ void GAP::GenFirstCut()
 		cv.push_back(a);
 	for (auto a : e)
 		ce.push_back(a);
-	/*
-	std::ofstream m2("mst.txt");
-	m2 << "VERTICES" << std::endl;
-	for (auto a : v)
-		m2 << a << std::endl;
-	m2 << "EDGES" << std::endl;
-	for (auto a : e)
-		m2 << a << std::endl;
-	m2.close();
-	*/
+
 	meshcut = std::make_unique<MeshCut>(const_cast<Mesh&>(Closedmesh),MCache);
 	meshcut->SetCut(cv, ce);
 	v_seam.resize(Closedmesh.n_vertices());
@@ -2418,7 +2410,6 @@ void GAP::GenFirstCut()
 	//meshcut->get_correspondence();
 	mesh = meshcut->GetCutedMesh();
 	meshcut->get_correspondence(he2idx, idx2meshvid);
-	OpenMesh::IO::write_mesh(mesh,"tmp.obj");
 	V_N = mesh.n_vertices();
 	F_N =mesh.n_faces();
 	area.resize(F_N);

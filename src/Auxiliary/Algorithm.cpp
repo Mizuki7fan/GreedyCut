@@ -322,7 +322,7 @@ void Algorithm::UpdateNeighbourhood(MeshCache &MC, int k, int v)
 {
 	if (k <= MC.Max_Neighbour[v])
 	{
-		std::cout << "Memory Hit" << std::endl;
+		//std::cout << "Memory Hit" << std::endl;
 		return;
 
 	}

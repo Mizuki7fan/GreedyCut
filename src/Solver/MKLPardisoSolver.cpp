@@ -1,12 +1,11 @@
-#include "PardisoSolver.h"
+#include "MKLPardisoSolver.h"
+#include <stdexcept>
 
-//#define PLOTS_PARDISO
-
-PardisoSolver::PardisoSolver()
+MKLPardisoSolver::MKLPardisoSolver()
 {
 }
 
-PardisoSolver::~PardisoSolver()
+MKLPardisoSolver::~MKLPardisoSolver()
 {
 	if (mtype == -1)
 		return;
@@ -28,7 +27,7 @@ PardisoSolver::~PardisoSolver()
 			iparm, &msglvl, &ddum, &ddum, &error);
 }
 
-void PardisoSolver::pardiso_init()
+void MKLPardisoSolver::pardiso_init()
 {
 	mtype = -2;
 	if (mtype == -1)
@@ -108,7 +107,7 @@ void PardisoSolver::pardiso_init()
 		exit(1);
 	}
 }
-bool PardisoSolver::factorize()
+bool MKLPardisoSolver::factorize()
 {
 	if (mtype == -1)
 		throw std::runtime_error("Pardiso mtype not set.");
@@ -128,7 +127,7 @@ bool PardisoSolver::factorize()
 	return (error == 0);
 }
 
-void PardisoSolver::pardiso_solver()
+void MKLPardisoSolver::pardiso_solver()
 {
 
 #ifdef PLOTS_PARDISO
@@ -182,7 +181,7 @@ void PardisoSolver::pardiso_solver()
 #endif
 }
 
-void PardisoSolver::free_numerical_factorization_memory()
+void MKLPardisoSolver::free_numerical_factorization_memory()
 {
 	phase = 0; /* Release internal memory. */
 

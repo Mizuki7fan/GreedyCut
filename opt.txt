@@ -2,15 +2,16 @@
 OutputDir=../Output/
 
 #==============InterResult==========
+#是否进行中间结果的输出 Yes/NO
 InterResultOutput=Yes
 #==============PointSamplingCfg===========
-#采样方法 0-RealDistance/1-GeodesicDistance/2-LargestEdgeLength
+#采样方法 RealDistance/GeodesicDistance/Dijkstra
 SampleMethod=Dijkstra
 #采样初始点的起点，可以指定也可以随机Random
-SampleFirstPoint=Random
+SampleFirstPoint=0
 
 #==============PointFindingCfg=======
-#如何度量顶点的优先级？ RealDis/Geodesic/RealDis
+#如何度量顶点的优先级？ RealDis/Neighbourhood/
 VertexPriorityMetric=RealDis
 
 #==============禁止区域的半径，测地距离
@@ -29,9 +30,9 @@ GAPForbddenRadius=5
 #==============GAPFilteringRate扭曲下降的阈值
 GAPFilteringRate=0.01;
 #==============GAP并行数
-GAPParrCount=6
+GAPParrCount=8
 #==============AAP的并行数
-AAPParrCount=6
+AAPParrCount=8
 #==============AAP停止条件
 AAPTrimmingRate=0.01
 #==============AAP最大加点数目

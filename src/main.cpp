@@ -112,7 +112,16 @@ int main(int argc, char* argv[])
 	PF.Set(opt.VertexPriorityMetric);
 	//找局部最大值点，然后求他们的禁止区域
 	PF.FindLocalMaximizer();
-	
+	if (opt.IntermediateResultOutput == "Yes")
+	{
+		std::vector<int> PF1 = PF.GetLocalMaximizer();
+
+		std::ofstream FP1(opt.OutputDir + "\\FP1.txt");
+		FP1 << "VERTICES" << std::endl;
+		for (auto a : PF1)
+			FP1 << a << std::endl;
+		FP1.close();
+	}
 	MeshCut Mcut2(mesh, MC);
 	//准备求禁止区域，参数是第一条割缝，局部最大值点，是否连线
 	Mcut2.SetBanCondition(PF.GetLocalMaximizer(), MCut.GetCutvertex(),opt.BanAreaMethod);
@@ -171,7 +180,7 @@ int main(int argc, char* argv[])
 
 	if (opt.IntermediateResultOutput == "Yes")
 	{
-		std::ofstream pf2Result(opt.OutputDir + "\\BeforeFiltering.txt");
+		std::ofstream pf2Result(opt.OutputDir + "\\FP2.txt");
 		std::vector<int> r = PF2.GetLocalMaximizer();
 		pf2Result << "VERTICES" << std::endl;
 		for (auto a : r)
@@ -179,12 +188,10 @@ int main(int argc, char* argv[])
 		pf2Result.close();
 	}
 
-
-
 	std::cout << "GAP Stage ......" << std::endl;
 	GAP gap(mesh, MC);
 	gap.Set(Res,opt.VertexPriorityMetric,20,5,opt.GAPFilteringRate,opt.GAPParrCount);
-	gap.SetPardiso(1e-6, 500, 250);
+	gap.SetSolver(1e-6, 500, 250);
 	gap.GenFirstCut();
 	gap.gradually_addp_pipeline();
 	std::vector<int> gapResult = gap.getResult();
@@ -198,6 +205,9 @@ int main(int argc, char* argv[])
 
 	time_t et = clock();
 	std::cout << et - st << std::endl;
+	std::ofstream timer(opt.OutputDir + "\\time.txt");
+	timer << et - st << std::endl;
+	timer.close();
 
 	std::ofstream before(opt.OutputDir + "\\Before.txt");
 	for (auto a : Res)
@@ -207,7 +217,8 @@ int main(int argc, char* argv[])
 	for (auto a : gapResult)
 		fix << a << std::endl;
 	fix.close();
-	std::ofstream total(opt.OutputDir + "\\"+opt.ModelName+"_landmarks.txt");
+	std::string mName = opt.ModelName.substr(0, opt.ModelName.find_last_of("."));
+	std::ofstream total(opt.OutputDir + "\\"+mName+"_landmarks.txt");
 	for (auto a : totalResult)
 		total << a << std::endl;
 	total.close();

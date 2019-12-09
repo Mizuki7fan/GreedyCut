@@ -1,7 +1,8 @@
 #pragma once
 #include "..//MeshDefinition/MeshDefinition.h"
-#include "..//PardisoSolver/PardisoSolver.h"
+#include "../Solver/Solver.h"
 #include <complex>
+#include <iostream>
 
 class KPNewton
 {
@@ -58,12 +59,14 @@ private:
 	std::vector<std::vector<int>> tri;
 	std::vector<int> assembleorder;
 
-	PardisoSolver solver;
 	Mesh& mesh;
 	std::vector<int> isbv;
 
 	decltype(&ComputeMIPS) computeall; // parameter functional
 	decltype(&ComputeEnergyMIPS) computeenergy; // energy functional
 	bool EnergyIsNan = false;
+
+public:
+	Solver* solver;
 	
 };
