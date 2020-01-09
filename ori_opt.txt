@@ -6,7 +6,7 @@ OutputDir=../Output/
 InterResultOutput=Yes
 #==============PointSamplingCfg===========
 #采样方法 RealDistance/GeodesicDistance/Dijkstra
-SampleMethod=Dijkstra
+SampleMethod=RealDistance
 #采样初始点的起点，可以指定也可以随机Random
 SampleFirstPoint=0
 

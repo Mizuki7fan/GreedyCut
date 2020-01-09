@@ -5,7 +5,7 @@ project(GreedyCut)
 #识别使用的编译器
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     message(STATUS "编译器是gcc")
-    SET(CMAKE_CXX_FLAGS "-O3")
+    SET(CMAKE_CXX_FLAGS "-O2")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     message(STATUS "编译器是msvc")
     #添加预处理器定义，/Db表示是MSVC的编译器
@@ -22,8 +22,8 @@ if(OPENMP_FOUND)
 endif()
 
 #指定线性方程组求解器，通过ON和OFF来控制
-option(USE_PARDISO "Use Pardiso" ON)
-option(USE_MKL_PARDISO "Use MKL Pardiso" OFF)
+option(USE_PARDISO "Use Pardiso" OFF)
+option(USE_MKL_PARDISO "Use MKL Pardiso" ON)
 
 #检测操作系统并且进行配置
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -76,6 +76,11 @@ file (GLOB SRCFILES
 )
 
 add_executable(${PROJECT_NAME} ${SRCFILES})
-target_link_libraries(${PROJECT_NAME} debug OpenMeshToolsd debug OpenMeshCored)
-target_link_libraries(${PROJECT_NAME} optimized OpenMeshTools optimized OpenMeshCore)
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    target_link_libraries(${PROJECT_NAME} debug OpenMeshToolsd debug OpenMeshCored)
+    target_link_libraries(${PROJECT_NAME} optimized OpenMeshTools optimized OpenMeshCore)
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    target_link_libraries(${PROJECT_NAME}  OpenMeshTools OpenMeshCore)
+endif()
+
 target_link_libraries(${PROJECT_NAME} ${PARDISO_LIBRARY})

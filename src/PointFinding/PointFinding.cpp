@@ -44,7 +44,6 @@ void PointFinding::FindLocalMaximizer()
 				LocalMaximizer[i] = 1;
 		}
 	}
-
 }
 
 std::vector<int> PointFinding::GetLocalMaximizer()

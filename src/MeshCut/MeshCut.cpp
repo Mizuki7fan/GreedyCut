@@ -28,8 +28,112 @@ void MeshCut::SetBanCondition(const std::vector<int> &banV, const std::vector<in
 	}
 	else if (BanMethod == "Connect")
 	{
-		//将输入的点和边连起来得到ban_vertex;
+		std::vector<int> lmk = banV;
+		std::vector<int> cutVertex = banE;
+		std::vector<int> cutEdge;
+
+		int add_count = lmk.size();
+		int min_sp, min_ep;
+		double min_dis;
+		std::vector<int> considered(MCache.n_vertices, 0);
+		std::vector<int> is_marked(MCache.n_vertices, 0);
+		for (int u = 0; u < cutVertex.size(); u++)
+			is_marked[cutVertex[u]] = 1;
+		while (add_count!=0)
+		{
+			int min_sp = -1, min_ep = -1;
+			double min_dis = DBL_MAX;
+			for (int u = 0; u < lmk.size(); u++)
+			{
+				if (considered[lmk[u]] == 1)
+					continue;
+				int s_p = lmk[u];
+				if (MCache.V_D[s_p].size() == 0)
+				{
+					MCache.V_D[s_p].resize(MCache.n_vertices, DBL_MAX);
+					continue;
+				}
+				for (int s = 0; s < cutVertex.size(); s++)
+				{
+					if (MCache.V_D[s_p][cutVertex[s]] < min_dis)
+					{
+						min_sp = s_p;
+						min_ep = cutVertex[s];
+						min_dis = MCache.V_D[s_p][cutVertex[s]];
+					}
+				}
+			}
+			if (min_sp != -1)
+			{
+				while (1)
+				{
+					int tmp = min_ep;
+					min_ep = MCache.V_VP[min_sp][min_ep];
+					if (min_ep == tmp)
+						break;
+					cutVertex.push_back(min_ep);
+					cutEdge.push_back(MCache.vve[tmp][min_ep]);
+				}
+				considered[min_sp] = 1;
+				add_count--;
+				continue;
+			}
+			else
+			{
+				for (int i = 0; i < lmk.size(); i++)
+				{
+					if (considered[lmk[i]] == 1)
+						continue;
+					std::vector<int>& is_visited = MCache.dijkstra_isvisited[lmk[i]];
+					std::vector<double>& distance = MCache.V_D[lmk[i]];
+					std::priority_queue<node>& que = MCache.dijkstra_cache[lmk[i]];
+					std::vector<int>& v_p = MCache.V_VP[lmk[i]];
+					if (is_visited.size() == 0)
+					{
+						is_visited.resize(MCache.n_vertices, 0);
+						distance.resize(MCache.n_vertices, DBL_MAX);
+						distance[lmk[i]] = 0;
+						que.push(node(lmk[i], 0));
+						v_p.resize(MCache.n_vertices, -1);
+						v_p[lmk[i]] = lmk[i];
+					}
+					if (que.empty())
+					{
+						que.push(node(lmk[i], 0));
+					}
+					while (!que.empty())
+					{
+						node tmp = que.top();
+						que.pop();
+						if (is_visited[tmp.id] == 1)
+							continue;
+						if (is_marked[tmp.id] == 1)
+						{
+							break;
+						}
+						is_visited[tmp.id] = 1;
+						for (int s = 0; s < MCache.vv[tmp.id].size(); s++)
+						{
+							int v_id = MCache.vv[tmp.id][s];
+							int e_id = MCache.ve[tmp.id][s];
+							if (distance[tmp.id] + MCache.el[e_id] < distance[v_id])
+							{
+								distance[v_id] = distance[tmp.id] + MCache.el[e_id];
+								que.push(node(v_id, distance[v_id]));
+								v_p[v_id] = tmp.id;
+							}
+						}
+					}
+				}
+			}
+		}
+		ban_vertex = cutVertex;
 	}
+	std::ofstream ban("banV.txt");
+	for (auto a : ban_vertex)
+		ban << a << std::endl;
+	ban.close();
+	
 }
 
 void MeshCut::SetCut(std::vector<int> cV, std::vector<int> cE)

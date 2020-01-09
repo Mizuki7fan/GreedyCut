@@ -46,8 +46,9 @@ int main(int argc, char* argv[])
 	if (_access(opt.OutputDir.c_str(), 0) == -1)
 		int i = _mkdir(opt.OutputDir.c_str());
 #endif // _WIN64
-
 	//读网格，新建备份类
+
+	time_t sst = clock();
 	Mesh mesh;
 	OpenMesh::IO::read_mesh(mesh, argv[1]);
 	OpenMesh::IO::write_mesh(mesh, opt.OutputDir + "\\" + opt.ModelName);
@@ -56,6 +57,9 @@ int main(int argc, char* argv[])
 		std::cerr << "网格顶点数为0" << std::endl;
 		return 0;
 	}
+	time_t eet = clock();
+	std::cout << eet - sst << std::endl;
+	//return 0;
 	MeshCache MC(mesh);
 	std::cout << "Find Cut 1" << std::endl;
 	//第一次找点是没有什么约束条件的
@@ -105,6 +109,8 @@ int main(int argc, char* argv[])
 	{
 		OpenMesh::IO::write_mesh(cuted_mesh, opt.OutputDir + "\\kpn1.obj", OpenMesh::IO::Options::Default, 10);
 	}
+	std::cout << "读取固定的Kpn1.obj" << std::endl;
+	//OpenMesh::IO::read_mesh(cuted_mesh, "D:\\Project\\GreedyCut\\Output\\alien\\kpn1.obj");
 
 	std::cout << "Kpnewton Finish" << std::endl;
 	std::vector<int> firstcutResult;
@@ -117,11 +123,12 @@ int main(int argc, char* argv[])
 		std::vector<int> PF1 = PF.GetLocalMaximizer();
 
 		std::ofstream FP1(opt.OutputDir + "\\FP1.txt");
-		FP1 << "VERTICES" << std::endl;
 		for (auto a : PF1)
 			FP1 << a << std::endl;
 		FP1.close();
+		std::cout << "FeaturePoint1 size:" << PF1.size() << std::endl;
 	}
+
 	MeshCut Mcut2(mesh, MC);
 	//准备求禁止区域，参数是第一条割缝，局部最大值点，是否连线
 	Mcut2.SetBanCondition(PF.GetLocalMaximizer(), MCut.GetCutvertex(),opt.BanAreaMethod);
@@ -138,8 +145,11 @@ int main(int argc, char* argv[])
 	{
 		std::ofstream SecondAllowedArea(opt.OutputDir + "\\SecondAllowedArea.txt");
 		SecondAllowedArea << "VERTICES" << std::endl;
-		for (auto a : AllowedArea)
-			SecondAllowedArea << a << std::endl;
+		for (int i = 0; i < AllowedArea.size(); i++)
+		{
+			if (AllowedArea[i]==1)
+				SecondAllowedArea << i << std::endl;
+		}
 		SecondAllowedArea.close();
 		std::ofstream SecondCutTxt(opt.OutputDir + "\\SecondCut.txt");
 		std::vector<int> cutV = Mcut2.GetCutvertex();
@@ -182,11 +192,14 @@ int main(int argc, char* argv[])
 	{
 		std::ofstream pf2Result(opt.OutputDir + "\\FP2.txt");
 		std::vector<int> r = PF2.GetLocalMaximizer();
-		pf2Result << "VERTICES" << std::endl;
 		for (auto a : r)
 			pf2Result << a << std::endl;
 		pf2Result.close();
+		std::cout << "FeaturePoint2 size:" << r.size() << std::endl;
 	}
+
+	time_t st2=clock();
+	std::cout<<st2-st<<std::endl;
 
 	std::cout << "GAP Stage ......" << std::endl;
 	GAP gap(mesh, MC);
