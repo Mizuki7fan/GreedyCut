@@ -1,9 +1,9 @@
 #include "KPNewton.h"
 #include <unordered_map>
 #ifdef USE_PARDISO
-#include "../Solver/PardisoSolver.h"
+#include "Solver/PardisoSolver.h"
 #elif defined(USE_MKL_PARDISO)
-#include "../Solver/MKLPardisoSolver.h"
+#include "Solver/MKLPardisoSolver.h"
 #endif // USE_PARDISO
 
 #define M_2_SQRTPI 1.12837916709551257390   // 2/sqrt(pi)
@@ -59,7 +59,6 @@ void KPNewton::Tutte()
 	pardiso_t.reserve(6 * nv);
 	pardiso_tu.resize(nv, 0.0);
 	pardiso_tv.resize(nv, 0.0);
-	//这里其实不太好并行，无法预先知道一个pardiso_jt[i]该选择哪个分支
 	for (const auto& vh : mesh.vertices())
 	{
 		pardiso_it.push_back(static_cast<int>(pardiso_jt.size()));
@@ -132,7 +131,7 @@ void KPNewton::PrepareDataFree(void)
 	ja.reserve(16 * nv);
 	std::vector<std::vector<int>> tmp_ja(nv);
 
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int vid = 0; vid < nv; vid++)
 	{
 		std::vector<int> rowid;
@@ -164,7 +163,7 @@ void KPNewton::PrepareDataFree(void)
 
 	tmp_ja.clear();
 	tmp_ja.resize(nv);
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int vid = 0; vid < mesh.n_vertices(); vid++)
 	{
 		std::vector<int> rowid;
@@ -195,7 +194,7 @@ void KPNewton::PrepareDataFree(void)
 
 	std::vector<std::unordered_map<int, int>> spid(2 * nv);
 	size_t j = 0;
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < ia.size() - 1; i++)
 	{
 		for (int j = ia[i]; j < ia[i + 1]; j++)
@@ -204,7 +203,7 @@ void KPNewton::PrepareDataFree(void)
 		}
 	}
 	tri.resize(mesh.n_faces());
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < mesh.n_faces(); i++)
 	{
 		auto fh = mesh.face_handle(i);
@@ -215,7 +214,7 @@ void KPNewton::PrepareDataFree(void)
 	}
 	assembleorder.clear();
 	std::vector<std::vector<int>> tmp_assembleorder(tri.size());
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int fid = 0; fid < tri.size(); fid++)
 	{
 		const auto& vhs = tri[fid];
@@ -251,7 +250,6 @@ void KPNewton::RunFree(const EnergyType& etype)
 {
 	if (EnergyIsNan)
 		return;
-	//mode决定是否要加面积权
 	auto maxiter = 100;
 	double Iscale = 1e-8;
 	double ls_StepFac = 0.5;
@@ -287,13 +285,13 @@ void KPNewton::RunFree(const EnergyType& etype)
 	std::vector<std::vector< std::complex<double>>> DC(nF, std::vector<std::complex<double>>(3));
 	std::vector<double> area(nF);
 	double totalarea = 0;
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < nF; i++)
 	{
 		auto&& frame = localframe[i];
 		frame[1] = std::sqrt(faceElens[i][2]);
 		frame[2] = std::polar(std::sqrt(faceElens[i][1]), faceAngles[i][0]);
-		//是否使用面积权
+		//use area weight
 		area[i] = frame[1].real() * frame[2].imag() / 2;
 		//area[i] = 1;
 		DC[i][0] = std::complex<double>(0.0, -0.25) * (frame[1] - frame[2]) / area[i];
@@ -403,7 +401,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		double normg = 0.0;
 		std::vector<double> tmp_normg(g.size());
 
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 		for (int i = 0; i < g.size(); i++)
 		{
 			b[i] = -g[i];
@@ -420,7 +418,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		std::vector<std::complex<double>> newpos(nV);
 		double stepDirlen = 0.0;
 		double energyGrad = 0.0;
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 		for (int i = 0; i < nV; i++)
 		{
 			sDC[i] = { x[i], x[i + nV] };
@@ -435,25 +433,21 @@ void KPNewton::RunFree(const EnergyType& etype)
 		stepDirlen = std::sqrt(stepDirlen);
 		double lsa = ComputeTMax(result, sDC) * 0.9;
 		lsa = lsa > 1 ? 1 : lsa;
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 		for (int i = 0; i < nV; i++)
 		{
 			newpos[i] = result[i] + sDC[i] * lsa;
 		}
 		double newEnergy = ComputeEnergy(newpos, D, DC, area);
-		//能量值为正无穷
 		if (std::isnan(newEnergy))
 		{
 			EnergyIsNan = true;
 			break;
-
 		}
-			
-
 		while (stepDirlen * lsa > ls_MinStep && e + lsa * energyGrad < newEnergy)
 		{
 			lsa = ls_StepFac * lsa;
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 			for (int i = 0; i < nV; i++)
 			{
 				newpos[i] = result[i] + sDC[i] * lsa;
@@ -465,7 +459,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		}
 		else
 		{
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 			for (int i = 0; i < nV; i++)
 			{
 				result[i] = newpos[i];
@@ -475,9 +469,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 		{
 			break;
 		}
-
 	}
-
 }
 
 void KPNewton::ComputeMIPS(double& energy, double& alpha1, double& alpha2, double& beta1, double& beta2, double& beta3, const double& x, const double& y)
@@ -579,7 +571,7 @@ double KPNewton::ComputeEnergy(const std::vector<std::complex<double>>& pos,
 	std::vector<double> tmp_energy(tri.size(), 0);
 	int flag = 0;
 
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int fid = 0; fid < tri.size(); fid++)
 	{
 		if (flag == 0)
@@ -612,7 +604,7 @@ double KPNewton::ComputeEnergy(const std::vector<std::complex<double>>& pos,
 
 void KPNewton::UpdateMesh(void)
 {
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < mesh.n_vertices(); i++)
 	{
 		const auto& vh = mesh.vertex_handle(i);
@@ -654,7 +646,7 @@ std::vector<Mesh::VertexHandle> KPNewton::GetBoundary(void) const
 std::vector<std::vector<double>> KPNewton::MeshFaceEdgeLen2s(void) const
 {
 	std::vector<std::vector<double>> len(mesh.n_faces(), std::vector<double>(3));
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < len.size(); i++)
 	{
 		auto fh = mesh.face_handle(i);
@@ -673,7 +665,7 @@ std::vector<std::vector<double>> KPNewton::MeshAnglesFromFaceEdgeLen2(const std:
 {
 	std::vector<std::vector<double>> ang;
 	ang.resize(len2.size(), std::vector<double>(3));
-#pragma omp parallel for num_threads(16)
+#pragma omp parallel for
 	for (int i = 0; i < len2.size(); i++)
 	{
 		ang[i] =

@@ -1,22 +1,42 @@
 #include "AddAuxiliaryPoint.h"
 
 AAP::AAP(Mesh& mesh, MeshCache& MC, std::vector<int>& landmark)
-	:mesh(mesh),MC(MC),landmark(landmark)
+	:mesh(mesh), MC(MC), landmark(landmark)
 {
+}
 
+void AAP::Set(double TrimmingRate, int MaxAddCount)
+{
+	this->TrimmingRate = TrimmingRate;
+	this->MaxAddCount = MaxAddCount;
+}
+
+void AAP::Run()
+{
+	GenGraph();
+	int add_count = 0;
+	greed1_ok = false;
+	while (!greed1_ok)
+	{
+		if (add_count == MaxAddCount)
+			break;
+		Greed1_Op();
+		add_count++;
+	}
+}
+
+AAP::~AAP()
+{
 }
 
 void AAP::GenGraph()
 {
 	for (int i = 0; i < landmark.size(); i++)
-	{
 		Algorithm::Dijkstra_all(MC, landmark[i]);
-	}
-
-	for (int i=0;i<landmark.size();i++)
+	for (int i = 0; i < landmark.size(); i++)
 		for (int j = i + 1; j < landmark.size(); j++)
 		{
-			PresavedPath.push(PathInfo(landmark[i], landmark[j], MC.V_D[landmark[i]][landmark[j]]));
+			PresavedPath.push(PathInfo(landmark[i], landmark[j], MC.Vd[landmark[i]][landmark[j]]));
 		}
 	std::vector<PathInfo> Mst;
 	std::priority_queue<PathInfo> Back(PresavedPath);
@@ -29,24 +49,11 @@ void AAP::GenGraph()
 	this->TreeLength = TLength;
 }
 
-void AAP::Op()
-{
-	int add_count = 0;
-	greed1_ok = false;
-	while (!greed1_ok)
-	{
-		if (add_count == MaxAddCount)
-			break;
-		Greed1_Op();
-		add_count++;
-	}
-}
-
 void AAP::Greed1_Op()
 {
-	std::vector<double> vertex_weight(MC.n_vertices);
+	std::vector<double> vertex_weight(MC.NVertices);
 #pragma omp parallel for
-	for (int i = 0; i < MC.n_vertices; i++)
+	for (int i = 0; i < MC.NVertices; i++)
 	{
 		if (std::find(landmark.begin(), landmark.end(), i) != landmark.end())
 			vertex_weight[i] = this->TreeLength;
@@ -58,7 +65,7 @@ void AAP::Greed1_Op()
 			e_landmarks.push_back(i);
 			for (int j = 0; j < landmark.size(); j++)
 			{
-				Path.push(PathInfo(landmark[j], i, MC.V_D[landmark[j]][i]));
+				Path.push(PathInfo(landmark[j], i, MC.Vd[landmark[j]][i]));
 			}
 			std::vector<PathInfo> Mst;
 			Algorithm::Kruskal(e_landmarks, Path, Mst);
@@ -69,7 +76,7 @@ void AAP::Greed1_Op()
 	}
 	int min_id = -1;
 	double min_dis = DBL_MAX;
-	for (int i = 0; i < MC.n_vertices; i++)
+	for (int i = 0; i < MC.NVertices; i++)
 	{
 		if (vertex_weight[i] < min_dis)
 		{
@@ -77,19 +84,18 @@ void AAP::Greed1_Op()
 			min_id = i;
 		}
 	}
-	if (TreeLength - min_dis < TrimmingRate + 1e-10)
+	if (TreeLength - min_dis < TrimmingRate*MC.Lbb + 1e-10)
 		min_id = -1;
 	if (min_id == -1)
 		greed1_ok = true;
 	else
 	{
-		std::cout << "AAP add point " << min_id << std::endl;
 		landmark.push_back(min_id);
 		greed1_ok = false;
 		Algorithm::Dijkstra_all(MC, min_id);
 		for (int i = 0; i < landmark.size() - 1; i++)
 		{
-			PresavedPath.push(PathInfo(min_id, landmark[i], MC.V_D[landmark[i]][min_id]));
+			PresavedPath.push(PathInfo(min_id, landmark[i], MC.Vd[landmark[i]][min_id]));
 		}
 		std::vector<PathInfo> Mst;
 		Algorithm::Kruskal(landmark, PresavedPath, Mst);
@@ -100,23 +106,4 @@ void AAP::Greed1_Op()
 		}
 		this->TreeLength = TLength;
 	}
-}
-
-std::vector<int> AAP::GetResult()
-{
-	return landmark;
-}
-
-void AAP::Set(int TR,int AddCount,int ParaCount)
-{
-	this->TrimmingRate = TR;
-	if (AddCount > 0)
-		this->MaxAddCount = AddCount;
-	else
-		this->MaxAddCount = MC.n_vertices;
-	this->ParaCount = ParaCount;
-}
-
-AAP::~AAP()
-{
 }

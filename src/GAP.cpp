@@ -1,23 +1,42 @@
 #include "GAP.h"
-#include <iomanip>
+#include "MeshCut.h"
+#ifdef USE_PARDISO
+#include "Solver/PardisoSolver.h"
+#elif defined(USE_MKL_PARDISO)
+#include "Solver/MKLPardisoSolver.h"
+#endif // USE_PARDISO
 
-GAP::GAP(Mesh& closed_mesh, std::vector<std::pair<int, int>>& landmark, MeshCache& MCache,double filtering_rate)
-	:closed_mesh(closed_mesh),MC(MCache),filtering_rate(filtering_rate)
+GAP::GAP(Mesh &mesh,  MeshCache& MC,std::vector<std::pair<int,double>>& lmk)
+	:ClosedMesh(mesh),MC(MC),landmark(lmk)
 {
-	std::cout<<"Filtering Rate = "<<filtering_rate<<std::endl;
-	landmarks_classification(landmark);
-	//std::cout<<landmark.size()<<std::endl;
-	Algorithm::Dijkstra(MCache, landmarks_fix);
-	MeshCut cut(closed_mesh, MCache);
+}
+
+void GAP::Set(double InfluenceThreshold,double FilteringThreshold)
+{	
+	this->InfluenceThreshold = InfluenceThreshold;
+	this->DistortionThreshold = FilteringThreshold;
+}
+
+void GAP::SetSolver(double convgence_con_rate, int MAX_ITER_NUM, double bound_distortion_K)
+{
+	this->convgence_con_rate = convgence_con_rate;
+	this->MAX_ITER_NUM = MAX_ITER_NUM;
+	this->bound_distortion_K = bound_distortion_K;
+}
+
+void GAP::Run()
+{
+	LandmarksClassification();
+	Algorithm::Dijkstra_group(MC, LmkFix);
+	MeshCut Cut(ClosedMesh, MC);
 	std::vector<int> seam;
-	//std::cout<<landmarks_fix.size()<<std::endl;
-	cut.SetCondition(landmarks_fix, seam);
-	cut.CalcCut();
-	cut.MakeSeam();
-	std::vector<int> v_seam2 = cut.GetCutvertex();
-	std::vector<int> e_seam2 = cut.GetCutEdge();
-	v_seam.resize(closed_mesh.n_vertices());
-	e_seam.resize(closed_mesh.n_edges());
+	Cut.Set(LmkFix, seam);
+	Cut.Connect();
+	Cut.MakeSeam();
+	std::vector<int> v_seam2 = Cut.GetCutvertex();
+	std::vector<int> e_seam2 = Cut.GetCutedge();
+	v_seam.resize(ClosedMesh.n_vertices());
+	e_seam.resize(ClosedMesh.n_edges());
 	for (int i = 0; i < v_seam2.size(); i++)
 	{
 		v_seam[v_seam2[i]] = 1;
@@ -26,68 +45,18 @@ GAP::GAP(Mesh& closed_mesh, std::vector<std::pair<int, int>>& landmark, MeshCach
 	{
 		e_seam[e_seam2[i]] = 1;
 	}
-	this->mesh = cut.GetCutedMesh();
-	cut.get_correspondence(he2idx, idx2meshvid);
-	F_N = mesh.n_faces();
-	V_N = mesh.n_vertices();
+	this->mEsh = Cut.GetCutedMesh();
+	Cut.GetCorrespondence(he2idx, idx2meshvid);
+	F_N = mEsh.n_faces();
+	V_N = mEsh.n_vertices();
 	area.resize(F_N);
-	F0.resize(F_N);
-	F1.resize(F_N);
-	F2.resize(F_N);
+	F0.resize(F_N); F1.resize(F_N); F2.resize(F_N);
 	position_of_mesh.resize(2 * V_N);
 	negative_grad_norm.resize(2 * V_N);
-	mesh.request_face_normals();
-	mesh.update_normals();
-	pardiso = NULL;
-	convgence_con_rate = 1e-6;
-	MAX_ITER_NUM = 500;
-	bound_distortion_K = 250;
-}
+	mEsh.request_face_normals();
+	mEsh.update_normals();
+	solver = NULL;
 
-GAP::~GAP()
-{
-}
-
-void GAP::getResult(std::vector<int>& v)
-{
-	v = result;
-}
-
-void GAP::landmarks_classification(std::vector<std::pair<int, int>>& lmk)
-{
-	int filter = 20;
-	std::vector<std::pair<int, int>> lmk2;
-	for (auto a : lmk)
-	{
-		lmk2.push_back({ a.second,a.first });
-	}
-	sort(lmk2.begin(), lmk2.end());
-	for (auto it = lmk2.rbegin(); it != lmk2.rend(); it++)
-	{
-		if (it->first >= filter)
-		{
-			landmarks_fix.push_back(it->second);
-			result.push_back(it->second);
-		}
-		else
-		{
-			landmarks_candidate.push_back(it->second);
-		}
-	}
-	if (landmarks_fix.size() == 1)
-	{
-		landmarks_fix.push_back(landmarks_candidate[0]);
-		std::vector<int> tmp;
-		for (int i = 1; i < landmarks_candidate.size(); i++)
-			tmp.push_back(landmarks_candidate[i]);
-		landmarks_candidate = tmp;
-	}
-
-
-}
-
-void GAP::gradually_addp_pipeline()
-{
 	run_bpe();
 	bool is_moveon = true;
 	while (is_moveon)
@@ -96,23 +65,40 @@ void GAP::gradually_addp_pipeline()
 	}
 }
 
-void GAP::local_coordinate_inverse(int i, double& p00, double& p01, double& p10, double& p11)
+GAP::~GAP()
 {
-	int f0 = F0[i];
-	int f1 = F1[i];
-	int f2 = F2[i];
+}
 
-	OpenMesh::Vec3d x_ = (mesh.point(mesh.vertex_handle(f1)) - mesh.point(mesh.vertex_handle(f0)));
-	double x1_0 = x_.length();
-	OpenMesh::Vec3d l_ = mesh.point(mesh.vertex_handle(f2)) - mesh.point(mesh.vertex_handle(f0));
-	OpenMesh::Vec3d y_ = mesh.normal(mesh.face_handle(i)) % (1 / x1_0 * x_);
-	double x2_0 = 1 / x1_0 * l_ | x_;
-	double y2_0 = l_ | y_;
+void GAP::LandmarksClassification()
+{
+	std::vector<std::pair<double, int>> lmk2;
+	double filter = InfluenceThreshold * MC.AVG_EL;
 
-	p00 = 1 / x1_0;
-	p01 = -x2_0 / (x1_0 * y2_0);
-	p10 = 0;
-	p11 = 1 / y2_0;
+	for (auto a : landmark)
+	{
+		lmk2.push_back({ a.second,a.first });
+	}
+	sort(lmk2.begin(), lmk2.end());
+	for (auto it = lmk2.rbegin(); it != lmk2.rend(); it++)
+	{
+		if (it->first >= filter)
+		{
+			LmkFix.push_back(it->second);
+		}
+		else
+		{
+			LmkCanditate.push_back(it->second);
+		}
+	}
+	if (LmkFix.size() == 1)
+	{
+		LmkFix.push_back(LmkCanditate[0]);
+		std::vector<int> tmp;
+		for (int i = 1; i < LmkCanditate.size(); i++)
+			tmp.push_back(LmkCanditate[i]);
+		LmkCanditate = tmp;
+	}
+	LmkResult = LmkFix;
 }
 
 void GAP::run_bpe()
@@ -120,31 +106,318 @@ void GAP::run_bpe()
 	init();
 	BPE();
 	energy_prev_seam = energy_area;
+}
 
+bool GAP::add1p(bool startfromtutte, int parr_count)
+{
+	if (LmkCanditate.size() == 0)
+		return false;
+	parr_count = omp_get_num_procs();
+	int step;
+	if (parr_count > LmkCanditate.size())
+	{
+		step = LmkCanditate.size();
+	}
+	else
+	{
+		step = parr_count;
+	}
 
+	p_v_seam.clear();
+	p_e_seam.clear();
+	p_idx2meshvid.clear();
+	p_he2idx.clear();
+	p_F0.clear();
+	p_F1.clear();
+	p_F2.clear();
+	p_VV_ids.clear();
+	p_position_of_mesh.clear();
+	p_V_N.clear();
+	p_F_N.clear();
+	p_solver_i.clear();
+	p_solver_ia.clear();
+	p_solver_ja.clear();
+	p_solver_a.clear();
+	p_solver_b.clear();
+
+	p_id_h00.clear(); p_id_h01.clear(); p_id_h02.clear(); p_id_h03.clear(); p_id_h04.clear(); p_id_h05.clear();
+	p_id_h11.clear(); p_id_h12.clear(); p_id_h13.clear(); p_id_h14.clear(); p_id_h15.clear();
+	p_id_h22.clear(); p_id_h23.clear(); p_id_h24.clear(); p_id_h25.clear();
+	p_id_h33.clear(); p_id_h34.clear(); p_id_h35.clear();
+	p_id_h44.clear(); p_id_h45.clear();
+	p_id_h55.clear();
+
+	p_source_p00.clear(); p_source_p01.clear(); p_source_p10.clear(); p_source_p11.clear();
+	p_update_p00.clear(); p_update_p01.clear(); p_update_p10.clear(); p_update_p11.clear();
+	p_Intp_T_Min.clear();
+	p_changetocm_flag.clear();
+	p_g_norm.clear();
+	p_energy_uniform.clear();
+	p_energy_area.clear();
+	p_energy_prev_seam.clear();
+	p_solver.clear();
+
+	p_v_seam.resize(step, v_seam);
+	p_e_seam.resize(step, e_seam);
+	p_idx2meshvid.resize(step, idx2meshvid);
+	p_he2idx.resize(step, he2idx);
+	p_F0.resize(step, F0);
+	p_F1.resize(step, F1);
+	p_F2.resize(step, F2);
+	p_VV_ids.resize(step, VV_ids);
+	p_position_of_mesh.resize(step, position_of_mesh);
+	p_V_N.resize(step, V_N);
+	p_F_N.resize(step, F_N);
+	p_solver_i.resize(step, solver_i);
+	p_solver_ia.resize(step, solver_ia);
+	p_solver_ja.resize(step, solver_ja);
+	p_solver_a.resize(step, solver_a);
+	p_solver_b.resize(step, solver_b);
+
+	p_id_h00.resize(step, id_h00); p_id_h01.resize(step, id_h01); p_id_h02.resize(step, id_h02); p_id_h03.resize(step, id_h03); p_id_h04.resize(step, id_h04); p_id_h05.resize(step, id_h05);
+	p_id_h11.resize(step, id_h11); p_id_h12.resize(step, id_h12); p_id_h13.resize(step, id_h13); p_id_h14.resize(step, id_h14); p_id_h15.resize(step, id_h15);
+	p_id_h22.resize(step, id_h22); p_id_h23.resize(step, id_h23); p_id_h24.resize(step, id_h24); p_id_h25.resize(step, id_h25);
+	p_id_h33.resize(step, id_h33); p_id_h34.resize(step, id_h34); p_id_h35.resize(step, id_h35);
+	p_id_h44.resize(step, id_h44); p_id_h45.resize(step, id_h45);
+	p_id_h55.resize(step, id_h55);
+
+	p_source_p00.resize(step, source_p00); p_source_p01.resize(step, source_p01); p_source_p10.resize(step, source_p10); p_source_p11.resize(step, source_p11);
+	p_update_p00.resize(step, update_p00); p_update_p01.resize(step, update_p01); p_update_p10.resize(step, update_p10); p_update_p11.resize(step, update_p11);
+	p_Intp_T_Min.resize(step, Intp_T_Min);
+	p_changetocm_flag.resize(step, changetocm_flag);
+	p_g_norm.resize(step, g_norm);
+	p_energy_uniform.resize(step, energy_uniform);
+	p_energy_area.resize(step, energy_area);
+	p_energy_prev_seam.resize(step, energy_area);
+	p_solver.resize(step, solver);
+
+	std::vector<std::vector<int>> p_path_1p2seam_v(step);
+	std::vector<std::vector<int>> p_path_1p2seam_e(step);
+
+	std::vector<double> des_value(step, -1);
+
+#pragma omp parallel for num_threads(step)
+	for (int ii = 0; ii < step; ii++)
+	{
+		//如果这个点在边界上，则直接跳过不执行
+		if (p_v_seam[ii][LmkCanditate[ii]] == 1)
+		{
+			des_value[ii] = 0;
+			continue;
+		}
+		p_path_1p2seam_v[ii].clear();
+		p_path_1p2seam_e[ii].clear();
+
+		Algorithm::Dijkstra_with_nearest2(MC, LmkCanditate[ii], p_v_seam[ii], p_path_1p2seam_v[ii]);
+		int tmp_V_N = p_V_N[ii] + p_path_1p2seam_v[ii].size() - 1;
+		Eigen::VectorXd pos_bk_tmp;
+		pos_bk_tmp.resize(2 * tmp_V_N);
+		pos_bk_tmp.block(0, 0, p_V_N[ii], 1) = p_position_of_mesh[ii].topRows(p_V_N[ii]);
+		pos_bk_tmp.block(tmp_V_N, 0, p_V_N[ii], 1) = p_position_of_mesh[ii].bottomRows(p_V_N[ii]);
+		position_of_mesh;
+		p_idx2meshvid[ii].resize(tmp_V_N);
+		int v_n_tmp = p_V_N[ii];
+		OpenMesh::HalfedgeHandle h_iter;
+		for (const auto& heh : ClosedMesh.voh_range(ClosedMesh.vertex_handle(p_path_1p2seam_v[ii].back())))
+		{
+			if (ClosedMesh.to_vertex_handle(heh).idx() == p_path_1p2seam_v[ii][p_path_1p2seam_v[ii].size() - 2])
+			{
+				h_iter = heh;
+				break;
+			}
+		}
+		int i_ = p_path_1p2seam_v[ii].size() - 2;
+		int to_vid;
+
+		do
+		{
+			p_path_1p2seam_e[ii].push_back(h_iter.idx() >> 1);
+			auto fh = ClosedMesh.face_handle(h_iter);
+			pos_bk_tmp(v_n_tmp) = p_position_of_mesh[ii](p_he2idx[ii][h_iter.idx()]);
+			pos_bk_tmp(v_n_tmp + tmp_V_N) = p_position_of_mesh[ii](p_he2idx[ii][h_iter.idx()] + p_V_N[ii]);
+			p_he2idx[ii][h_iter.idx()] = v_n_tmp;
+			p_idx2meshvid[ii][v_n_tmp] = ClosedMesh.to_vertex_handle(h_iter).idx();
+			auto itfh = ClosedMesh.fh_begin(fh);
+			p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+			itfh++;
+			p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+			itfh++;
+			p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+			h_iter = ClosedMesh.next_halfedge_handle(h_iter);
+			to_vid = ClosedMesh.to_vertex_handle(h_iter).idx();
+
+			if (i_ == 0)
+			{
+				while (!p_e_seam[ii][ClosedMesh.edge_handle(h_iter).idx()])
+				{
+					h_iter = ClosedMesh.opposite_halfedge_handle(h_iter);
+					p_he2idx[ii][h_iter.idx()] = v_n_tmp;
+
+					fh = ClosedMesh.face_handle(h_iter);
+					itfh = ClosedMesh.fh_begin(fh);
+					p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+					itfh++;
+					p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+					itfh++;
+					p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+					h_iter = ClosedMesh.next_halfedge_handle(h_iter);
+					to_vid = ClosedMesh.to_vertex_handle(h_iter).idx();
+				}
+				break;
+			}
+
+			while (to_vid != p_path_1p2seam_v[ii][i_ - 1])
+			{
+				h_iter = ClosedMesh.opposite_halfedge_handle(h_iter);
+				p_he2idx[ii][h_iter.idx()] = v_n_tmp;
+				fh = ClosedMesh.face_handle(h_iter);
+				itfh = ClosedMesh.fh_begin(fh);
+				p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+				itfh++;
+				p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+				itfh++;
+				p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
+
+				h_iter = ClosedMesh.next_halfedge_handle(h_iter);
+				to_vid = ClosedMesh.to_vertex_handle(h_iter).idx();
+			}
+
+			v_n_tmp++;
+			i_--;
+		} while (true);
+		p_position_of_mesh[ii] = pos_bk_tmp;
+		p_V_N[ii] = tmp_V_N;
+
+		std::vector<int> e_seam_tmp;
+		e_seam_tmp = p_e_seam[ii];
+		for (auto& var : p_path_1p2seam_e[ii])
+		{
+			e_seam_tmp[var] = 1;
+		}
+
+		{
+			Mesh::HalfedgeHandle h_begin;
+			for (int i = 0; i < e_seam_tmp.size(); i++)
+			{
+				if (e_seam_tmp[i])
+				{
+					h_begin = ClosedMesh.halfedge_handle(ClosedMesh.edge_handle(i), 0);
+					break;
+				}
+			}
+			auto h_iter = h_begin;
+			std::vector<int> boundary_vs;
+			std::vector<int> hiter_id;
+			do
+			{
+				hiter_id.push_back(h_iter.idx());
+				boundary_vs.push_back(p_he2idx[ii][h_iter.idx()]);
+				h_iter = ClosedMesh.next_halfedge_handle(h_iter);
+				int tmp = ClosedMesh.edge_handle(h_iter).idx();
+				while (!e_seam_tmp[ClosedMesh.edge_handle(h_iter).idx()])
+				{
+					h_iter = ClosedMesh.opposite_halfedge_handle(h_iter);
+					h_iter = ClosedMesh.next_halfedge_handle(h_iter);
+				}
+			} while (h_iter != h_begin);
+
+			p_VV_ids[ii].clear();
+			p_VV_ids[ii].resize(tmp_V_N);
+			for (size_t i = 0; i < F_N; i++)
+			{
+				p_VV_ids[ii][p_F0[ii][i]].push_back(p_F2[ii][i]);
+				p_VV_ids[ii][p_F1[ii][i]].push_back(p_F0[ii][i]);
+				p_VV_ids[ii][p_F2[ii][i]].push_back(p_F1[ii][i]);
+			}
+			for (size_t i = 0; i < boundary_vs.size() - 1; i++)
+			{
+				p_VV_ids[ii][boundary_vs[i]].push_back(boundary_vs[i + 1]);
+			}
+			p_VV_ids[ii][boundary_vs.back()].push_back(boundary_vs.front());
+		}
+		//意味不明
+		rePre_calculate(ii);
+		BPE(ii);
+		double energy_decrease = p_energy_prev_seam[ii] - p_energy_area[ii];
+		des_value[ii] = energy_decrease;
+	}
+
+	int max_id = -1;
+	double max_dec = 0;
+	std::vector<int> value;
+	for (int a = 0; a < step; a++)
+		value.push_back(LmkCanditate[a]);
+	for (int m = 0; m < step; m++)
+	{//下降小于阈值
+		if (des_value[m] < DistortionThreshold)
+		{
+			auto it = std::find(LmkCanditate.begin(), LmkCanditate.end(), value[m]);
+			LmkCanditate.erase(it);
+		}
+		else
+		{
+			if (des_value[m] > max_dec)
+			{
+				max_id = m;
+				max_dec = DBL_MAX;
+			}
+		}
+	}
+	if (max_id != -1)
+	{
+		LmkResult.push_back(value[max_id]);
+		auto it = std::find(LmkCanditate.begin(), LmkCanditate.end(), value[max_id]);
+		LmkCanditate.erase(it);
+
+		v_seam = p_v_seam[max_id];
+		e_seam = p_e_seam[max_id];
+		for (size_t i = 0; i < p_path_1p2seam_v[max_id].size(); i++)
+		{
+			v_seam[p_path_1p2seam_v[max_id][i]] = 1;
+		}
+		for (size_t i = 0; i < p_path_1p2seam_e[max_id].size(); i++)
+		{
+			e_seam[p_path_1p2seam_e[max_id][i]] = 1;
+		}
+
+		idx2meshvid = p_idx2meshvid[max_id];
+		he2idx = p_he2idx[max_id];
+		F0 = p_F0[max_id];
+		F1 = p_F1[max_id];
+		F2 = p_F2[max_id];
+		VV_ids = p_VV_ids[max_id];
+		position_of_mesh = p_position_of_mesh[max_id];
+		V_N = p_V_N[max_id];
+		F_N = p_F_N[max_id];
+
+		energy_uniform = p_energy_uniform[max_id];
+		energy_area = p_energy_area[max_id];
+		energy_prev_seam = p_energy_prev_seam[max_id];
+	}
+	return true;
 }
 
 void GAP::init()
 {
 	double area_sum = 0.0;
-	for (auto f_h = mesh.faces_begin(); f_h != mesh.faces_end(); f_h++)
+	for (auto f_h = mEsh.faces_begin(); f_h != mEsh.faces_end(); f_h++)
 	{
-		auto he_h = mesh.halfedge_handle(*f_h);
-		area_sum += mesh.calc_sector_area(he_h);
+		auto he_h = mEsh.halfedge_handle(*f_h);
+		area_sum += mEsh.calc_sector_area(he_h);
 	}
 	originmesh_area_sqrt = std::sqrt(area_sum);
 	double area_same_factor = 1.0 / originmesh_area_sqrt;
 	VV_ids.resize(V_N);
-	for (auto it1 = mesh.vertices_begin(); it1 != mesh.vertices_end(); it1++)
+	for (auto it1 = mEsh.vertices_begin(); it1 != mEsh.vertices_end(); it1++)
 	{
-		mesh.set_point(*it1, area_same_factor * mesh.point(*it1));
+		mEsh.set_point(*it1, area_same_factor * mEsh.point(*it1));
 	}
 
 	for (int i = 0; i < F_N; ++i)
 	{
-		auto face = mesh.face_handle(i);
+		auto face = mEsh.face_handle(i);
 		int dd = 0;
-		for (Mesh::FaceVertexIter it2 = mesh.fv_begin(face); it2 != mesh.fv_end(face); ++it2)
+		for (Mesh::FaceVertexIter it2 = mEsh.fv_begin(face); it2 != mEsh.fv_end(face); ++it2)
 		{
 			auto vertex_ = *it2;
 			switch (dd)
@@ -166,19 +439,23 @@ void GAP::init()
 
 void GAP::BPE()
 {
-	if (pardiso != NULL)
+	if (solver != NULL)
 	{
-		delete pardiso;
-		pardiso = NULL;
+		delete solver;
+		solver = NULL;
 	}
-	pardiso = new PardisoSolver();
-	pardiso->ia = pardiso_ia;
-	pardiso->ja = pardiso_ja;
-	pardiso->a.resize(pardiso_ja.size());
-	pardiso->nnz = pardiso_ja.size();
-	pardiso->num = 2 * V_N;
+#ifdef USE_PARDISO
+	solver = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	solver = new MKLPardisoSolver();
+#endif // USE_PARDISO
+	solver->ia = solver_ia;
+	solver->ja = solver_ja;
+	solver->a.resize(solver_ja.size());
+	solver->nnz = solver_ja.size();
+	solver->num = 2 * V_N;
 
-	pardiso->pardiso_init();
+	solver->pardiso_init();
 
 	std::vector<double> energy_area_process;
 	energy_area_process.reserve(MAX_ITER_NUM);
@@ -285,10 +562,8 @@ void GAP::BPE()
 	//std::cout << "COMP ====== time_consumption: " << time_consumption << " s;slim_iter: " << slim_iter_num << "; cm_iter: " << cm_iter_num << "; sum_iter: " << sum_iter_num << endl;
 
 
-	delete pardiso;
-	pardiso = NULL;
-
-
+	delete solver;
+	solver = NULL;
 }
 
 void GAP::init_src_matrix()
@@ -317,64 +592,64 @@ void GAP::init_src_matrix()
 
 void GAP::Pre_calculate()
 {
-	pardiso_i.clear(); pardiso_i.reserve(2 * V_N + 1);
-	pardiso_ia.clear(); pardiso_ia.reserve(2 * V_N + 1);
-	pardiso_ja.clear(); pardiso_ja.reserve(8 * V_N);
+	solver_i.clear(); solver_i.reserve(2 * V_N + 1);
+	solver_ia.clear(); solver_ia.reserve(2 * V_N + 1);
+	solver_ja.clear(); solver_ja.reserve(8 * V_N);
 
 	typedef Eigen::Triplet<int> T;
 	std::vector<T> tripletlist;
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		pardiso_ia.push_back(pardiso_ja.size());
+		solver_ia.push_back(solver_ja.size());
 		if (i < V_N)
 		{
-			auto vertex = mesh.vertex_handle(i);
-			vector<int> row_id;
+			auto vertex = mEsh.vertex_handle(i);
+			std::vector<int> row_id;
 
 			row_id.push_back(i);
 			row_id.push_back(i + V_N);
 
-			for (auto it = mesh.vv_begin(vertex); it != mesh.vv_end(vertex); ++it)
+			for (auto it = mEsh.vv_begin(vertex); it != mEsh.vv_end(vertex); ++it)
 			{
 				int id_neighbor = it->idx();
 				row_id.push_back(id_neighbor);
 				row_id.push_back(id_neighbor + V_N);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
-			vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
+			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 
 			int dd = 0;
 
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				pardiso_ja.push_back(row_id[k]);
-				pardiso_i.push_back(i);
+				solver_ja.push_back(row_id[k]);
+				solver_i.push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
 		}
 		else
 		{
-			auto vertex = mesh.vertex_handle(i - V_N);
+			auto vertex = mEsh.vertex_handle(i - V_N);
 
-			vector<int> row_id;
+			std::vector<int> row_id;
 
 			row_id.push_back(i);
 
-			for (auto it = mesh.vv_begin(vertex); it != mesh.vv_end(vertex); ++it)
+			for (auto it = mEsh.vv_begin(vertex); it != mEsh.vv_end(vertex); ++it)
 			{
 				int id_neighbor = it->idx() + V_N;
 				row_id.push_back(id_neighbor);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
-			vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
+			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 
 			int dd = 0;
 
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				pardiso_ja.push_back(row_id[k]);
-				pardiso_i.push_back(i);
+				solver_ja.push_back(row_id[k]);
+				solver_i.push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -384,7 +659,7 @@ void GAP::Pre_calculate()
 	find_id_in_rows.resize(2 * V_N, 2 * V_N);
 	find_id_in_rows.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
-	pardiso_ia.push_back(pardiso_ja.size());
+	solver_ia.push_back(solver_ja.size());
 
 	id_h00.resize(F_N); id_h01.resize(F_N); id_h02.resize(F_N); id_h03.resize(F_N); id_h04.resize(F_N); id_h05.resize(F_N);
 	id_h11.resize(F_N); id_h12.resize(F_N); id_h13.resize(F_N); id_h14.resize(F_N); id_h15.resize(F_N);
@@ -401,35 +676,34 @@ void GAP::Pre_calculate()
 		int min02 = std::min(f0, f2); int max02 = f0 + f2 - min02;
 		int min12 = std::min(f1, f2); int max12 = f1 + f2 - min12;
 
-		id_h00[i] = pardiso_ia[f0]; id_h01[i] = pardiso_ia[min01] + find_id_in_rows.coeff(min01, max01); id_h02[i] = pardiso_ia[min02] + find_id_in_rows.coeff(min02, max02);
-		id_h03[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f3); id_h04[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f4); id_h05[i] = pardiso_ia[f0] + find_id_in_rows.coeff(f0, f5);
+		id_h00[i] = solver_ia[f0]; id_h01[i] = solver_ia[min01] + find_id_in_rows.coeff(min01, max01); id_h02[i] = solver_ia[min02] + find_id_in_rows.coeff(min02, max02);
+		id_h03[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f3); id_h04[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f4); id_h05[i] = solver_ia[f0] + find_id_in_rows.coeff(f0, f5);
 
-		id_h11[i] = pardiso_ia[f1]; id_h12[i] = pardiso_ia[min12] + find_id_in_rows.coeff(min12, max12);
-		id_h13[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f3); id_h14[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f4); id_h15[i] = pardiso_ia[f1] + find_id_in_rows.coeff(f1, f5);
+		id_h11[i] = solver_ia[f1]; id_h12[i] = solver_ia[min12] + find_id_in_rows.coeff(min12, max12);
+		id_h13[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f3); id_h14[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f4); id_h15[i] = solver_ia[f1] + find_id_in_rows.coeff(f1, f5);
 
-		id_h22[i] = pardiso_ia[f2];
-		id_h23[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f3); id_h24[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f4); id_h25[i] = pardiso_ia[f2] + find_id_in_rows.coeff(f2, f5);
+		id_h22[i] = solver_ia[f2];
+		id_h23[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f3); id_h24[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f4); id_h25[i] = solver_ia[f2] + find_id_in_rows.coeff(f2, f5);
 
-		id_h33[i] = pardiso_ia[f3]; id_h34[i] = pardiso_ia[min01 + V_N] + find_id_in_rows.coeff(min01 + V_N, max01 + V_N); id_h35[i] = pardiso_ia[min02 + V_N] + find_id_in_rows.coeff(min02 + V_N, max02 + V_N);
+		id_h33[i] = solver_ia[f3]; id_h34[i] = solver_ia[min01 + V_N] + find_id_in_rows.coeff(min01 + V_N, max01 + V_N); id_h35[i] = solver_ia[min02 + V_N] + find_id_in_rows.coeff(min02 + V_N, max02 + V_N);
 
-		id_h44[i] = pardiso_ia[f4]; id_h45[i] = pardiso_ia[min12 + V_N] + find_id_in_rows.coeff(min12 + V_N, max12 + V_N);
+		id_h44[i] = solver_ia[f4]; id_h45[i] = solver_ia[min12 + V_N] + find_id_in_rows.coeff(min12 + V_N, max12 + V_N);
 
-		id_h55[i] = pardiso_ia[f5];
+		id_h55[i] = solver_ia[f5];
 	}
-
 }
 
 void GAP::TutteOp()
 {
 	int boundary_num = 0;
-	auto it1 = mesh.halfedges_begin();
-	while (!mesh.is_boundary(*it1))
+	auto it1 = mEsh.halfedges_begin();
+	while (!mEsh.is_boundary(*it1))
 		it1++;
 	auto he_start = *it1;
 	auto he_it = he_start;
 	do
 	{
-		he_it = mesh.next_halfedge_handle(he_it);
+		he_it = mEsh.next_halfedge_handle(he_it);
 		boundary_num++;
 	} while (he_it != he_start);
 
@@ -439,10 +713,10 @@ void GAP::TutteOp()
 	//position_of_mesh.resize(2 * V_N);
 	for (int i = 0; i < boundary_num; ++i)
 	{
-		auto v_h = mesh.to_vertex_handle(he_start);
+		auto v_h = mEsh.to_vertex_handle(he_start);
 		position_of_mesh(v_h.idx()) = area_1_factor * cos(i * delta_angle);
 		position_of_mesh(v_h.idx() + V_N) = area_1_factor * sin(-i * delta_angle);
-		he_start = mesh.next_halfedge_handle(he_start);
+		he_start = mEsh.next_halfedge_handle(he_start);
 	}
 
 	std::vector<int> pardiso_it;
@@ -460,8 +734,8 @@ void GAP::TutteOp()
 	{
 		pardiso_it.push_back(pardiso_jt.size());
 
-		auto v_h = mesh.vertex_handle(i);
-		if (mesh.is_boundary(v_h))
+		auto v_h = mEsh.vertex_handle(i);
+		if (mEsh.is_boundary(v_h))
 		{
 			pardiso_jt.push_back(i);
 			pardiso_t.push_back(1);
@@ -473,14 +747,14 @@ void GAP::TutteOp()
 		else
 		{
 			pardiso_jt.push_back(i);
-			pardiso_t.push_back(mesh.valence(v_h));
+			pardiso_t.push_back(mEsh.valence(v_h));
 			std::vector<int> row_id;
-			row_id.reserve(mesh.valence(v_h));
+			row_id.reserve(mEsh.valence(v_h));
 			double bu = 0.0; double bv = 0.0;
-			for (auto it2 = mesh.vv_begin(v_h); it2 != mesh.vv_end(v_h); ++it2)
+			for (auto it2 = mEsh.vv_begin(v_h); it2 != mEsh.vv_end(v_h); ++it2)
 			{
 				int vv_id = it2->idx();
-				if (mesh.is_boundary(*it2))
+				if (mEsh.is_boundary(*it2))
 				{
 					bu += position_of_mesh(vv_id);
 					bv += position_of_mesh(vv_id + V_N);
@@ -504,45 +778,46 @@ void GAP::TutteOp()
 		}
 	}
 	pardiso_it.push_back(pardiso_jt.size());
-
-	if (pardiso != NULL)
+	if (solver != NULL)
 	{
-		delete pardiso;
-		pardiso = NULL;
+		delete solver;
+		solver = NULL;
 	}
-	pardiso = new PardisoSolver();
-	pardiso->ia = pardiso_it;
-	pardiso->ja = pardiso_jt;
-	pardiso->nnz = pardiso_jt.size();
-	pardiso->num = V_N;
 
-	pardiso->pardiso_init();
+#ifdef USE_PARDISO
+	solver = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	solver = new MKLPardisoSolver();
+#endif // USE_PARDISO
 
-	pardiso->a = pardiso_t;
+	solver->ia = pardiso_it;
+	solver->ja = pardiso_jt;
+	solver->nnz = pardiso_jt.size();
+	solver->num = V_N;
 
-	pardiso->rhs = pardiso_tu;
-	pardiso->factorize();
+	solver->pardiso_init();
 
-	pardiso->pardiso_solver();
+	solver->a = pardiso_t;
+
+	solver->rhs = pardiso_tu;
+	solver->factorize();
+
+	solver->pardiso_solver();
 
 	for (size_t i = 0; i < V_N; i++)
 	{
-		position_of_mesh(i) = (pardiso->result)[i];
+		position_of_mesh(i) = (solver->result)[i];
 	}
 
-	pardiso->rhs = pardiso_tv;
-	pardiso->pardiso_solver();
+	solver->rhs = pardiso_tv;
+	solver->pardiso_solver();
 	for (size_t i = 0; i < V_N; i++)
 	{
-		position_of_mesh(i + V_N) = (pardiso->result)[i];
+		position_of_mesh(i + V_N) = (solver->result)[i];
 	}
 
-	delete pardiso;
-	pardiso = NULL;
-
-
-
-
+	delete solver;
+	solver = NULL;
 }
 
 void GAP::init_area()
@@ -552,9 +827,9 @@ void GAP::init_area()
 	area_src.resize(F_N);
 	for (int i = 0; i < F_N; ++i)
 	{
-		auto face = mesh.face_handle(i);
+		auto face = mEsh.face_handle(i);
 		//area_src[i] = mesh.calc_sector_area(mesh.halfedge_handle(face));
-		area_src[i]=1.0/F_N;
+		area_src[i] = 1.0 / F_N;
 	}
 	std::fill(area_uniform.begin(), area_uniform.end(), 1.0 / F_N);
 	area = area_src;
@@ -597,7 +872,8 @@ void GAP::Energysource()
 
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
-			cout << "det " << det << endl;
+			printf("%s%d", "det", det);
+//			cout << "det " << det << endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 
@@ -615,13 +891,13 @@ void GAP::Update_source_same_t()
 	double t_min = 1;
 	int geqK = 0;
 
-	vector<double> all_s0; all_s0.resize(F_N);
-	vector<double> all_s1; all_s1.resize(F_N);
+	std::vector<double> all_s0; all_s0.resize(F_N);
+	std::vector<double> all_s1; all_s1.resize(F_N);
 
-	vector<double> all_w00; all_w00.resize(F_N);
-	vector<double> all_w01; all_w01.resize(F_N);
-	vector<double> all_w10; all_w10.resize(F_N);
-	vector<double> all_w11; all_w11.resize(F_N);
+	std::vector<double> all_w00; all_w00.resize(F_N);
+	std::vector<double> all_w01; all_w01.resize(F_N);
+	std::vector<double> all_w10; all_w10.resize(F_N);
+	std::vector<double> all_w11; all_w11.resize(F_N);
 
 
 	int f0, f1, f2;
@@ -723,18 +999,6 @@ void GAP::Update_source_same_t()
 	Intp_T_Min = t_min;
 }
 
-double GAP::newton_equation(const double& a, const double& b, const double& K)
-{
-	double tt = 1;
-	double E_d = pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K;
-	while (abs(E_d) > 1e-5)
-	{
-		tt = tt - 1 / (2 * log(a) * pow(a, 2 * tt) + 2 * log(b) * pow(b, 2 * tt) + 2 * log(1 / a) * pow(1 / a, 2 * tt) + 2 * log(1 / b) * pow(1 / b, 2 * tt)) * (pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K);
-		E_d = pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K;
-	}
-	return tt;
-}
-
 void GAP::SLIM()
 {
 	double area_now;
@@ -769,10 +1033,10 @@ void GAP::SLIM()
 		h55;
 	double* position = position_of_mesh.data();
 
-	int nnz = pardiso_ja.size();
-	pardiso_a.clear(); pardiso_b.clear();
-	pardiso_a.resize(nnz, 0.0);
-	pardiso_b.resize(2 * V_N, 0.0);
+	int nnz = solver_ja.size();
+	solver_a.clear(); solver_b.clear();
+	solver_a.resize(nnz, 0.0);
+	solver_b.resize(2 * V_N, 0.0);
 
 	for (int i = 0; i < F_N; ++i)
 	{
@@ -841,41 +1105,41 @@ void GAP::SLIM()
 		r3 = area_now * ((1 + 1 / (det * det)) * j11 - tr * j00 / (det * det * det));
 
 
-		pardiso_b[f0] -= r0 * d00 + r1 * d10;
-		pardiso_b[f1] -= r0 * d01 + r1 * d11;
-		pardiso_b[f2] -= r0 * d02 + r1 * d12;
-		pardiso_b[f0 + V_N] -= r2 * d00 + r3 * d10;
-		pardiso_b[f1 + V_N] -= r2 * d01 + r3 * d11;
-		pardiso_b[f2 + V_N] -= r2 * d02 + r3 * d12;
+		solver_b[f0] -= r0 * d00 + r1 * d10;
+		solver_b[f1] -= r0 * d01 + r1 * d11;
+		solver_b[f2] -= r0 * d02 + r1 * d12;
+		solver_b[f0 + V_N] -= r2 * d00 + r3 * d10;
+		solver_b[f1 + V_N] -= r2 * d01 + r3 * d11;
+		solver_b[f2 + V_N] -= r2 * d02 + r3 * d12;
 
-		pardiso_a[id_h00[i]] += h00; pardiso_a[id_h01[i]] += h01; pardiso_a[id_h02[i]] += h02; pardiso_a[id_h03[i]] += h03; pardiso_a[id_h04[i]] += h04; pardiso_a[id_h05[i]] += h05;
-		pardiso_a[id_h11[i]] += h11; pardiso_a[id_h12[i]] += h12; pardiso_a[id_h13[i]] += h13; pardiso_a[id_h14[i]] += h14; pardiso_a[id_h15[i]] += h15;
-		pardiso_a[id_h22[i]] += h22; pardiso_a[id_h23[i]] += h23; pardiso_a[id_h24[i]] += h24; pardiso_a[id_h25[i]] += h25;
-		pardiso_a[id_h33[i]] += h33; pardiso_a[id_h34[i]] += h34; pardiso_a[id_h35[i]] += h35;
-		pardiso_a[id_h44[i]] += h44; pardiso_a[id_h45[i]] += h45;
-		pardiso_a[id_h55[i]] += h55;
+		solver_a[id_h00[i]] += h00; solver_a[id_h01[i]] += h01; solver_a[id_h02[i]] += h02; solver_a[id_h03[i]] += h03; solver_a[id_h04[i]] += h04; solver_a[id_h05[i]] += h05;
+		solver_a[id_h11[i]] += h11; solver_a[id_h12[i]] += h12; solver_a[id_h13[i]] += h13; solver_a[id_h14[i]] += h14; solver_a[id_h15[i]] += h15;
+		solver_a[id_h22[i]] += h22; solver_a[id_h23[i]] += h23; solver_a[id_h24[i]] += h24; solver_a[id_h25[i]] += h25;
+		solver_a[id_h33[i]] += h33; solver_a[id_h34[i]] += h34; solver_a[id_h35[i]] += h35;
+		solver_a[id_h44[i]] += h44; solver_a[id_h45[i]] += h45;
+		solver_a[id_h55[i]] += h55;
 
 	}
 
-	pardiso->a = pardiso_a;
-	pardiso->rhs = pardiso_b;
+	solver->a = solver_a;
+	solver->rhs = solver_b;
 
-	pardiso->factorize();
-	pardiso->pardiso_solver();
+	solver->factorize();
+	solver->pardiso_solver();
 
-	std::vector<double> result_d = pardiso->result;
+	std::vector<double> result_d = solver->result;
 
 	Eigen::VectorXd negative_grad(2 * V_N), d(2 * V_N);
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		negative_grad(i) = pardiso_b[i];
+		negative_grad(i) = solver_b[i];
 		d(i) = result_d[i];
 	}
 
 	double temp_t;
 	max_step(position_of_mesh, d, temp_t);
 
-	double alpha = min(1.0, 0.8 * temp_t);
+	double alpha = std::min(1.0, 0.8 * temp_t);
 	backtracking_line_search(position_of_mesh, d, negative_grad, alpha);
 	position_of_mesh += alpha * d;
 
@@ -884,7 +1148,7 @@ void GAP::SLIM()
 
 void GAP::max_step(const Eigen::VectorXd& xx, const Eigen::VectorXd& dd, double& step)
 {
-	double temp_t = numeric_limits<double>::infinity();
+	double temp_t = std::numeric_limits<double>::infinity();
 	int f0, f1, f2;
 	double a, b, c, b1, b2, tt, tt1, tt2;
 	double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
@@ -1027,6 +1291,37 @@ void GAP::Energy(const Eigen::VectorXd& position, double& energyupdate)
 	energyupdate = energy;
 }
 
+void GAP::local_coordinate_inverse(int i, double& p00, double& p01, double& p10, double& p11)
+{
+	int f0 = F0[i];
+	int f1 = F1[i];
+	int f2 = F2[i];
+
+	OpenMesh::Vec3d x_ = (mEsh.point(mEsh.vertex_handle(f1)) - mEsh.point(mEsh.vertex_handle(f0)));
+	double x1_0 = x_.length();
+	OpenMesh::Vec3d l_ = mEsh.point(mEsh.vertex_handle(f2)) - mEsh.point(mEsh.vertex_handle(f0));
+	OpenMesh::Vec3d y_ = mEsh.normal(mEsh.face_handle(i)) % (1 / x1_0 * x_);
+	double x2_0 = 1 / x1_0 * l_ | x_;
+	double y2_0 = l_ | y_;
+
+	p00 = 1 / x1_0;
+	p01 = -x2_0 / (x1_0 * y2_0);
+	p10 = 0;
+	p11 = 1 / y2_0;
+}
+
+double GAP::newton_equation(const double& a, const double& b, const double& K)
+{
+	double tt = 1;
+	double E_d = pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K;
+	while (abs(E_d) > 1e-5)
+	{
+		tt = tt - 1 / (2 * log(a) * pow(a, 2 * tt) + 2 * log(b) * pow(b, 2 * tt) + 2 * log(1 / a) * pow(1 / a, 2 * tt) + 2 * log(1 / b) * pow(1 / b, 2 * tt)) * (pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K);
+		E_d = pow(a, 2 * tt) + pow(b, 2 * tt) + pow(1 / a, 2 * tt) + pow(1 / b, 2 * tt) - K;
+	}
+	return tt;
+}
+
 void GAP::CM()
 {
 	double area_now;
@@ -1060,10 +1355,10 @@ void GAP::CM()
 		h44, h45,
 		h55;
 	double* position = position_of_mesh.data();
-	int nnz = pardiso_ja.size();
-	pardiso_a.clear(); pardiso_b.clear();
-	pardiso_a.resize(nnz, 0.0);
-	pardiso_b.resize(2 * V_N, 0.0);
+	int nnz = solver_ja.size();
+	solver_a.clear(); solver_b.clear();
+	solver_a.resize(nnz, 0.0);
+	solver_b.resize(2 * V_N, 0.0);
 
 	for (int i = 0; i < F_N; ++i)
 	{
@@ -1162,37 +1457,37 @@ void GAP::CM()
 
 		u = aa * walpha; v = bb * wbeta;
 
-		pardiso_b[f0] -= (u * a1x0 + v * a2x0);
-		pardiso_b[f1] -= (u * a1x1 + v * a2x1);
-		pardiso_b[f2] -= (u * a1x2 + v * a2x2);
-		pardiso_b[f0 + V_N] -= (u * a1x3 + v * a2x3);
-		pardiso_b[f1 + V_N] -= (u * a1x4 + v * a2x4);
-		pardiso_b[f2 + V_N] -= (u * a1x5 + v * a2x5);
+		solver_b[f0] -= (u * a1x0 + v * a2x0);
+		solver_b[f1] -= (u * a1x1 + v * a2x1);
+		solver_b[f2] -= (u * a1x2 + v * a2x2);
+		solver_b[f0 + V_N] -= (u * a1x3 + v * a2x3);
+		solver_b[f1 + V_N] -= (u * a1x4 + v * a2x4);
+		solver_b[f2 + V_N] -= (u * a1x5 + v * a2x5);
 
-		pardiso_a[id_h00[i]] += h00; pardiso_a[id_h01[i]] += h01; pardiso_a[id_h02[i]] += h02; pardiso_a[id_h03[i]] += h03; pardiso_a[id_h04[i]] += h04; pardiso_a[id_h05[i]] += h05;
-		pardiso_a[id_h11[i]] += h11; pardiso_a[id_h12[i]] += h12; pardiso_a[id_h13[i]] += h13; pardiso_a[id_h14[i]] += h14; pardiso_a[id_h15[i]] += h15;
-		pardiso_a[id_h22[i]] += h22; pardiso_a[id_h23[i]] += h23; pardiso_a[id_h24[i]] += h24; pardiso_a[id_h25[i]] += h25;
-		pardiso_a[id_h33[i]] += h33; pardiso_a[id_h34[i]] += h34; pardiso_a[id_h35[i]] += h35;
-		pardiso_a[id_h44[i]] += h44; pardiso_a[id_h45[i]] += h45;
-		pardiso_a[id_h55[i]] += h55;
+		solver_a[id_h00[i]] += h00; solver_a[id_h01[i]] += h01; solver_a[id_h02[i]] += h02; solver_a[id_h03[i]] += h03; solver_a[id_h04[i]] += h04; solver_a[id_h05[i]] += h05;
+		solver_a[id_h11[i]] += h11; solver_a[id_h12[i]] += h12; solver_a[id_h13[i]] += h13; solver_a[id_h14[i]] += h14; solver_a[id_h15[i]] += h15;
+		solver_a[id_h22[i]] += h22; solver_a[id_h23[i]] += h23; solver_a[id_h24[i]] += h24; solver_a[id_h25[i]] += h25;
+		solver_a[id_h33[i]] += h33; solver_a[id_h34[i]] += h34; solver_a[id_h35[i]] += h35;
+		solver_a[id_h44[i]] += h44; solver_a[id_h45[i]] += h45;
+		solver_a[id_h55[i]] += h55;
 	}
 
-	pardiso->a = pardiso_a;
-	pardiso->rhs = pardiso_b;
+	solver->a = solver_a;
+	solver->rhs = solver_b;
 
-	pardiso->factorize();
-	pardiso->pardiso_solver();
+	solver->factorize();
+	solver->pardiso_solver();
 
-	vector<double> result_d = pardiso->result;
+	std::vector<double> result_d = solver->result;
 
 	Eigen::VectorXd negative_grad(2 * V_N), d(2 * V_N);
 	for (int i = 0; i < 2 * V_N; i++)
 	{
-		negative_grad(i) = pardiso_b[i];
+		negative_grad(i) = solver_b[i];
 		d(i) = result_d[i];
 	}
 
-	pardiso->free_numerical_factorization_memory();
+	solver->free_numerical_factorization_memory();
 
 	double temp_t;
 	max_step(position_of_mesh, d, temp_t);
@@ -1216,317 +1511,17 @@ void GAP::recover_to_src()
 	update_p11 = source_p11;
 }
 
-bool GAP::add1p(bool startfromtutte, int parr_count)
-{
-	if (landmarks_candidate.size() == 0)
-		return false;
-	//parr_count = omp_get_num_procs();
-	parr_count = 1;
-	int step;
-	if (parr_count > landmarks_candidate.size())
-	{
-		step = landmarks_candidate.size();
-	}
-	else
-	{
-		step = parr_count;
-	}
-
-	p_v_seam.clear();
-	p_e_seam.clear();
-	p_idx2meshvid.clear();
-	p_he2idx.clear();
-	p_F0.clear();
-	p_F1.clear();
-	p_F2.clear();
-	p_VV_ids.clear();
-	p_position_of_mesh.clear();
-	p_V_N.clear();
-	p_F_N.clear();
-	p_pardiso_i.clear();
-	p_pardiso_ia.clear();
-	p_pardiso_ja.clear();
-	p_pardiso_a.clear();
-	p_pardiso_b.clear();
-
-	p_id_h00.clear(); p_id_h01.clear(); p_id_h02.clear(); p_id_h03.clear(); p_id_h04.clear(); p_id_h05.clear();
-	p_id_h11.clear(); p_id_h12.clear(); p_id_h13.clear(); p_id_h14.clear(); p_id_h15.clear();
-	p_id_h22.clear(); p_id_h23.clear(); p_id_h24.clear(); p_id_h25.clear();
-	p_id_h33.clear(); p_id_h34.clear(); p_id_h35.clear();
-	p_id_h44.clear(); p_id_h45.clear();
-	p_id_h55.clear();
-
-	p_source_p00.clear(); p_source_p01.clear(); p_source_p10.clear(); p_source_p11.clear();
-	p_update_p00.clear(); p_update_p01.clear(); p_update_p10.clear(); p_update_p11.clear();
-	p_Intp_T_Min.clear();
-	p_changetocm_flag.clear();
-	p_g_norm.clear();
-	p_energy_uniform.clear();
-	p_energy_area.clear();
-	p_energy_prev_seam.clear();
-	p_pardiso.clear();
-
-	p_v_seam.resize(step, v_seam);
-	p_e_seam.resize(step, e_seam);
-	p_idx2meshvid.resize(step, idx2meshvid);
-	p_he2idx.resize(step, he2idx);
-	p_F0.resize(step, F0);
-	p_F1.resize(step, F1);
-	p_F2.resize(step, F2);
-	p_VV_ids.resize(step, VV_ids);
-	p_position_of_mesh.resize(step, position_of_mesh);
-	p_V_N.resize(step, V_N);
-	p_F_N.resize(step, F_N);
-	p_pardiso_i.resize(step, pardiso_i);
-	p_pardiso_ia.resize(step, pardiso_ia);
-	p_pardiso_ja.resize(step, pardiso_ja);
-	p_pardiso_a.resize(step, pardiso_a);
-	p_pardiso_b.resize(step, pardiso_b);
-
-	p_id_h00.resize(step, id_h00); p_id_h01.resize(step, id_h01); p_id_h02.resize(step, id_h02); p_id_h03.resize(step, id_h03); p_id_h04.resize(step, id_h04); p_id_h05.resize(step, id_h05);
-	p_id_h11.resize(step, id_h11); p_id_h12.resize(step, id_h12); p_id_h13.resize(step, id_h13); p_id_h14.resize(step, id_h14); p_id_h15.resize(step, id_h15);
-	p_id_h22.resize(step, id_h22); p_id_h23.resize(step, id_h23); p_id_h24.resize(step, id_h24); p_id_h25.resize(step, id_h25);
-	p_id_h33.resize(step, id_h33); p_id_h34.resize(step, id_h34); p_id_h35.resize(step, id_h35);
-	p_id_h44.resize(step, id_h44); p_id_h45.resize(step, id_h45);
-	p_id_h55.resize(step, id_h55);
-
-	p_source_p00.resize(step, source_p00); p_source_p01.resize(step, source_p01); p_source_p10.resize(step, source_p10); p_source_p11.resize(step, source_p11);
-	p_update_p00.resize(step, update_p00); p_update_p01.resize(step, update_p01); p_update_p10.resize(step, update_p10); p_update_p11.resize(step, update_p11);
-	p_Intp_T_Min.resize(step, Intp_T_Min);
-	p_changetocm_flag.resize(step, changetocm_flag);
-	p_g_norm.resize(step, g_norm);
-	p_energy_uniform.resize(step, energy_uniform);
-	p_energy_area.resize(step, energy_area);
-	p_energy_prev_seam.resize(step, energy_area);
-	p_pardiso.resize(step, pardiso);
-
-	std::vector<std::vector<int>> p_path_1p2seam_v(step);
-	std::vector<std::vector<int>> p_path_1p2seam_e(step);
-
-	std::vector<double> des_value(step, -1);
-	//遍历每一个选择，获得其扭曲的降低幅度
-	//
-	//time_t st = clock();
-#pragma omp parallel for num_threads(step)
-	for (int ii = 0; ii < step; ii++)
-	{
-		//如果这个点在边界上，则直接跳过不执行
-		if (p_v_seam[ii][landmarks_candidate[ii]] == 1)
-		{
-			des_value[ii] = 0;
-			continue;
-		}
-		p_path_1p2seam_v[ii].clear();
-		p_path_1p2seam_e[ii].clear();
-
-		Algorithm::Dijkstra_with_nearest2(MC, landmarks_candidate[ii], p_v_seam[ii], p_path_1p2seam_v[ii]);
-		int tmp_V_N = p_V_N[ii] + p_path_1p2seam_v[ii].size() - 1;
-		Eigen::VectorXd pos_bk_tmp;
-		pos_bk_tmp.resize(2 * tmp_V_N);
-		pos_bk_tmp.block(0, 0, p_V_N[ii], 1) = p_position_of_mesh[ii].topRows(p_V_N[ii]);
-		pos_bk_tmp.block(tmp_V_N, 0, p_V_N[ii], 1) = p_position_of_mesh[ii].bottomRows(p_V_N[ii]);
-		position_of_mesh;
-		p_idx2meshvid[ii].resize(tmp_V_N);
-		int v_n_tmp = p_V_N[ii];
-		OpenMesh::HalfedgeHandle h_iter;
-		for (const auto& heh : closed_mesh.voh_range(closed_mesh.vertex_handle(p_path_1p2seam_v[ii].back())))
-		{
-			if (closed_mesh.to_vertex_handle(heh).idx() == p_path_1p2seam_v[ii][p_path_1p2seam_v[ii].size() - 2])
-			{
-				h_iter = heh;
-				break;
-			}
-		}
-		int i_ = p_path_1p2seam_v[ii].size() - 2;
-		int to_vid;
-
-		do
-		{
-			p_path_1p2seam_e[ii].push_back(h_iter.idx() >> 1);
-			auto fh = closed_mesh.face_handle(h_iter);
-			pos_bk_tmp(v_n_tmp) = p_position_of_mesh[ii](p_he2idx[ii][h_iter.idx()]);
-			pos_bk_tmp(v_n_tmp + tmp_V_N) = p_position_of_mesh[ii](p_he2idx[ii][h_iter.idx()] + p_V_N[ii]);
-			p_he2idx[ii][h_iter.idx()] = v_n_tmp;
-			p_idx2meshvid[ii][v_n_tmp] = closed_mesh.to_vertex_handle(h_iter).idx();
-			auto itfh = closed_mesh.fh_begin(fh);
-			p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-			itfh++;
-			p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-			itfh++;
-			p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-			h_iter = closed_mesh.next_halfedge_handle(h_iter);
-			to_vid = closed_mesh.to_vertex_handle(h_iter).idx();
-
-			if (i_ == 0)
-			{
-				while (!p_e_seam[ii][closed_mesh.edge_handle(h_iter).idx()])
-				{
-					h_iter = closed_mesh.opposite_halfedge_handle(h_iter);
-					p_he2idx[ii][h_iter.idx()] = v_n_tmp;
-
-					fh = closed_mesh.face_handle(h_iter);
-					itfh = closed_mesh.fh_begin(fh);
-					p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-					itfh++;
-					p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-					itfh++;
-					p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-					h_iter = closed_mesh.next_halfedge_handle(h_iter);
-					to_vid = closed_mesh.to_vertex_handle(h_iter).idx();
-				}
-				break;
-			}
-
-			while (to_vid != p_path_1p2seam_v[ii][i_ - 1])
-			{
-				h_iter = closed_mesh.opposite_halfedge_handle(h_iter);
-				p_he2idx[ii][h_iter.idx()] = v_n_tmp;
-				fh = closed_mesh.face_handle(h_iter);
-				itfh = closed_mesh.fh_begin(fh);
-				p_F0[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-				itfh++;
-				p_F1[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-				itfh++;
-				p_F2[ii][fh.idx()] = p_he2idx[ii][itfh->idx()];
-
-				h_iter = closed_mesh.next_halfedge_handle(h_iter);
-				to_vid = closed_mesh.to_vertex_handle(h_iter).idx();
-			}
-
-			v_n_tmp++;
-			i_--;
-		} while (true);
-		p_position_of_mesh[ii] = pos_bk_tmp;
-		p_V_N[ii] = tmp_V_N;
-
-		std::vector<int> e_seam_tmp;
-		e_seam_tmp = p_e_seam[ii];
-		for (auto& var : p_path_1p2seam_e[ii])
-		{
-			e_seam_tmp[var] = 1;
-		}
-
-		{
-			Mesh::HalfedgeHandle h_begin;
-			for (int i = 0; i < e_seam_tmp.size(); i++)
-			{
-				if (e_seam_tmp[i])
-				{
-					h_begin = closed_mesh.halfedge_handle(closed_mesh.edge_handle(i), 0);
-					break;
-				}
-			}
-			auto h_iter = h_begin;
-			std::vector<int> boundary_vs;
-			std::vector<int> hiter_id;
-			do
-			{
-				hiter_id.push_back(h_iter.idx());
-				boundary_vs.push_back(p_he2idx[ii][h_iter.idx()]);
-				h_iter = closed_mesh.next_halfedge_handle(h_iter);
-				int tmp = closed_mesh.edge_handle(h_iter).idx();
-				while (!e_seam_tmp[closed_mesh.edge_handle(h_iter).idx()])
-				{
-					h_iter = closed_mesh.opposite_halfedge_handle(h_iter);
-					h_iter = closed_mesh.next_halfedge_handle(h_iter);
-				}
-			} while (h_iter != h_begin);
-
-			p_VV_ids[ii].clear();
-			p_VV_ids[ii].resize(tmp_V_N);
-			for (size_t i = 0; i < F_N; i++)
-			{
-				p_VV_ids[ii][p_F0[ii][i]].push_back(p_F2[ii][i]);
-				p_VV_ids[ii][p_F1[ii][i]].push_back(p_F0[ii][i]);
-				p_VV_ids[ii][p_F2[ii][i]].push_back(p_F1[ii][i]);
-			}
-			for (size_t i = 0; i < boundary_vs.size() - 1; i++)
-			{
-				p_VV_ids[ii][boundary_vs[i]].push_back(boundary_vs[i + 1]);
-			}
-			p_VV_ids[ii][boundary_vs.back()].push_back(boundary_vs.front());
-		}
-		//意味不明
-		rePre_calculate(ii);
-		BPE(ii);
-		double energy_decrease = p_energy_prev_seam[ii] - p_energy_area[ii];
-		des_value[ii] = energy_decrease;
-	}
-
-	int max_id = -1;
-	double max_dec = 0;
-	std::vector<int> value;
-	for (int a = 0; a < step; a++)
-		value.push_back(landmarks_candidate[a]);
-	for (int m = 0; m < step; m++)
-	{//下降小于阈值
-		if (des_value[m] < filtering_rate)
-		{
-			auto it = std::find(landmarks_candidate.begin(), landmarks_candidate.end(), value[m]);
-			landmarks_candidate.erase(it);
-		}
-		else
-		{
-			if (des_value[m] > max_dec)
-			{
-				max_id = m;
-				max_dec = DBL_MAX;
-			}
-		}
-	}
-	if (max_id != -1)
-	{
-		//std::cout << "addpoint   " << value[max_id] << std::endl;
-		result.push_back(value[max_id]);
-		auto it = std::find(landmarks_candidate.begin(), landmarks_candidate.end(), value[max_id]);
-		landmarks_candidate.erase(it);
-
-		v_seam = p_v_seam[max_id];
-		e_seam = p_e_seam[max_id];
-		for (size_t i = 0; i < p_path_1p2seam_v[max_id].size(); i++)
-		{
-			v_seam[p_path_1p2seam_v[max_id][i]] = 1;
-		}
-		for (size_t i = 0; i < p_path_1p2seam_e[max_id].size(); i++)
-		{
-			e_seam[p_path_1p2seam_e[max_id][i]] = 1;
-		}
-
-		idx2meshvid = p_idx2meshvid[max_id];
-		he2idx = p_he2idx[max_id];
-		F0 = p_F0[max_id];
-		F1 = p_F1[max_id];
-		F2 = p_F2[max_id];
-		VV_ids = p_VV_ids[max_id];
-		position_of_mesh = p_position_of_mesh[max_id];
-		V_N = p_V_N[max_id];
-		F_N = p_F_N[max_id];
-
-		energy_uniform = p_energy_uniform[max_id];
-		energy_area = p_energy_area[max_id];
-		energy_prev_seam = p_energy_prev_seam[max_id];
-
-	}
-
-	return true;
-
-
-
-
-	return false;
-}
-
 void GAP::rePre_calculate(int N)
 {
-	p_pardiso_i[N].clear(); p_pardiso_i[N].reserve(2 * p_V_N[N] + 1);
-	p_pardiso_ia[N].clear(); p_pardiso_ia[N].reserve(2 * p_V_N[N] + 1);
-	p_pardiso_ja[N].clear(); p_pardiso_ja[N].reserve(8 * p_V_N[N]);
+	p_solver_i[N].clear(); p_solver_i[N].reserve(2 * p_V_N[N] + 1);
+	p_solver_ia[N].clear(); p_solver_ia[N].reserve(2 * p_V_N[N] + 1);
+	p_solver_ja[N].clear(); p_solver_ja[N].reserve(8 * p_V_N[N]);
 
 	typedef Eigen::Triplet<int> T;
 	std::vector<T> tripletlist;
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		p_pardiso_ia[N].push_back(p_pardiso_ja[N].size());
+		p_solver_ia[N].push_back(p_solver_ja[N].size());
 		if (i < p_V_N[N])
 		{
 			std::vector<int> row_id;
@@ -1537,13 +1532,13 @@ void GAP::rePre_calculate(int N)
 				row_id.push_back(vv);
 				row_id.push_back(vv + p_V_N[N]);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
 			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 			int dd = 0;
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				p_pardiso_ja[N].push_back(row_id[k]);
-				p_pardiso_i[N].push_back(i);
+				p_solver_ja[N].push_back(row_id[k]);
+				p_solver_i[N].push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -1556,13 +1551,13 @@ void GAP::rePre_calculate(int N)
 			{
 				row_id.push_back(vv + p_V_N[N]);
 			}
-			std::sort(row_id.begin(), row_id.end(), less<int>());
+			std::sort(row_id.begin(), row_id.end(), std::less<int>());
 			std::vector<int>::iterator iter = std::find(row_id.begin(), row_id.end(), i);
 			int dd = 0;
 			for (int k = std::distance(row_id.begin(), iter); k < row_id.size(); k++)
 			{
-				p_pardiso_ja[N].push_back(row_id[k]);
-				p_pardiso_i[N].push_back(i);
+				p_solver_ja[N].push_back(row_id[k]);
+				p_solver_i[N].push_back(i);
 				tripletlist.push_back(T(i, row_id[k], dd));
 				++dd;
 			}
@@ -1572,7 +1567,7 @@ void GAP::rePre_calculate(int N)
 	find_id_in_rows.resize(2 * p_V_N[N], 2 * p_V_N[N]);
 	find_id_in_rows.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
-	p_pardiso_ia[N].push_back(p_pardiso_ja[N].size());
+	p_solver_ia[N].push_back(p_solver_ja[N].size());
 
 	p_id_h00[N].resize(p_F_N[N]); p_id_h01[N].resize(p_F_N[N]); p_id_h02[N].resize(p_F_N[N]); p_id_h03[N].resize(p_F_N[N]); p_id_h04[N].resize(p_F_N[N]); p_id_h05[N].resize(p_F_N[N]);
 	p_id_h11[N].resize(p_F_N[N]); p_id_h12[N].resize(p_F_N[N]); p_id_h13[N].resize(p_F_N[N]); p_id_h14[N].resize(p_F_N[N]); p_id_h15[N].resize(p_F_N[N]);
@@ -1585,42 +1580,46 @@ void GAP::rePre_calculate(int N)
 	{
 		int f0 = p_F0[N][i]; int f1 = p_F1[N][i]; int f2 = p_F2[N][i]; int f3 = p_F0[N][i] + p_V_N[N]; int f4 = p_F1[N][i] + p_V_N[N]; int f5 = p_F2[N][i] + p_V_N[N];
 
-		int min01 = min(f0, f1); int max01 = f0 + f1 - min01;
-		int min02 = min(f0, f2); int max02 = f0 + f2 - min02;
-		int min12 = min(f1, f2); int max12 = f1 + f2 - min12;
+		int min01 = std::min(f0, f1); int max01 = f0 + f1 - min01;
+		int min02 = std::min(f0, f2); int max02 = f0 + f2 - min02;
+		int min12 = std::min(f1, f2); int max12 = f1 + f2 - min12;
 
-		p_id_h00[N][i] = p_pardiso_ia[N][f0]; p_id_h01[N][i] = p_pardiso_ia[N][min01] + find_id_in_rows.coeff(min01, max01); p_id_h02[N][i] = p_pardiso_ia[N][min02] + find_id_in_rows.coeff(min02, max02);
-		p_id_h03[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f3); p_id_h04[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f4); p_id_h05[N][i] = p_pardiso_ia[N][f0] + find_id_in_rows.coeff(f0, f5);
+		p_id_h00[N][i] = p_solver_ia[N][f0]; p_id_h01[N][i] = p_solver_ia[N][min01] + find_id_in_rows.coeff(min01, max01); p_id_h02[N][i] = p_solver_ia[N][min02] + find_id_in_rows.coeff(min02, max02);
+		p_id_h03[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f3); p_id_h04[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f4); p_id_h05[N][i] = p_solver_ia[N][f0] + find_id_in_rows.coeff(f0, f5);
 
-		p_id_h11[N][i] = p_pardiso_ia[N][f1]; p_id_h12[N][i] = p_pardiso_ia[N][min12] + find_id_in_rows.coeff(min12, max12);
-		p_id_h13[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f3); p_id_h14[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f4); p_id_h15[N][i] = p_pardiso_ia[N][f1] + find_id_in_rows.coeff(f1, f5);
+		p_id_h11[N][i] = p_solver_ia[N][f1]; p_id_h12[N][i] = p_solver_ia[N][min12] + find_id_in_rows.coeff(min12, max12);
+		p_id_h13[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f3); p_id_h14[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f4); p_id_h15[N][i] = p_solver_ia[N][f1] + find_id_in_rows.coeff(f1, f5);
 
-		p_id_h22[N][i] = p_pardiso_ia[N][f2];
-		p_id_h23[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f3); p_id_h24[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f4); p_id_h25[N][i] = p_pardiso_ia[N][f2] + find_id_in_rows.coeff(f2, f5);
+		p_id_h22[N][i] = p_solver_ia[N][f2];
+		p_id_h23[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f3); p_id_h24[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f4); p_id_h25[N][i] = p_solver_ia[N][f2] + find_id_in_rows.coeff(f2, f5);
 
-		p_id_h33[N][i] = p_pardiso_ia[N][f3]; p_id_h34[N][i] = p_pardiso_ia[N][min01 + p_V_N[N]] + find_id_in_rows.coeff(min01 + p_V_N[N], max01 + p_V_N[N]); p_id_h35[N][i] = p_pardiso_ia[N][min02 + p_V_N[N]] + find_id_in_rows.coeff(min02 + p_V_N[N], max02 + p_V_N[N]);
+		p_id_h33[N][i] = p_solver_ia[N][f3]; p_id_h34[N][i] = p_solver_ia[N][min01 + p_V_N[N]] + find_id_in_rows.coeff(min01 + p_V_N[N], max01 + p_V_N[N]); p_id_h35[N][i] = p_solver_ia[N][min02 + p_V_N[N]] + find_id_in_rows.coeff(min02 + p_V_N[N], max02 + p_V_N[N]);
 
-		p_id_h44[N][i] = p_pardiso_ia[N][f4]; p_id_h45[N][i] = p_pardiso_ia[N][min12 + p_V_N[N]] + find_id_in_rows.coeff(min12 + p_V_N[N], max12 + p_V_N[N]);
+		p_id_h44[N][i] = p_solver_ia[N][f4]; p_id_h45[N][i] = p_solver_ia[N][min12 + p_V_N[N]] + find_id_in_rows.coeff(min12 + p_V_N[N], max12 + p_V_N[N]);
 
-		p_id_h55[N][i] = p_pardiso_ia[N][f5];
+		p_id_h55[N][i] = p_solver_ia[N][f5];
 	}
 }
 
 void GAP::BPE(int N)
 {
-	if (p_pardiso[N] != NULL)
+	if (p_solver[N] != NULL)
 	{
-		delete p_pardiso[N];
-		p_pardiso[N] = NULL;
+		delete p_solver[N];
+		p_solver[N] = NULL;
 	}
-	p_pardiso[N] = new PardisoSolver();
-	p_pardiso[N]->ia = p_pardiso_ia[N];
-	p_pardiso[N]->ja = p_pardiso_ja[N];
-	p_pardiso[N]->a.resize(p_pardiso_ja[N].size());
-	p_pardiso[N]->nnz = p_pardiso_ja[N].size();
-	p_pardiso[N]->num = 2 * p_V_N[N];
+#ifdef USE_PARDISO
+	p_solver[N] = new PardisoSolver();
+#elif USE_MKL_PARDISO
+	p_solver[N] = new MKLPardisoSolver();
+#endif // USE_PARDISO
+	p_solver[N]->ia = p_solver_ia[N];
+	p_solver[N]->ja = p_solver_ja[N];
+	p_solver[N]->a.resize(p_solver_ja[N].size());
+	p_solver[N]->nnz = p_solver_ja[N].size();
+	p_solver[N]->num = 2 * p_V_N[N];
 
-	p_pardiso[N]->pardiso_init();
+	p_solver[N]->pardiso_init();
 
 	std::vector<double> energy_area_process;
 	energy_area_process.reserve(MAX_ITER_NUM);
@@ -1720,8 +1719,8 @@ void GAP::BPE(int N)
 	time_end = clock();
 	time_consumption = (time_end - time_beg) / 1000.0;
 
-	delete p_pardiso[N];
-	p_pardiso[N] = NULL;
+	delete p_solver[N];
+	p_solver[N] = NULL;
 }
 
 void GAP::Energysource(int N)
@@ -1761,7 +1760,8 @@ void GAP::Energysource(int N)
 
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
-			cout << "det " << det << endl;
+			printf("%s%d\n", "det:", det);
+//			cout << "det " << det << endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 
@@ -1779,14 +1779,13 @@ void GAP::Update_source_same_t(int N)
 	double t_min = 1;
 	int geqK = 0;
 
-	vector<double> all_s0; all_s0.resize(p_F_N[N]);
-	vector<double> all_s1; all_s1.resize(p_F_N[N]);
+	std::vector<double> all_s0; all_s0.resize(p_F_N[N]);
+	std::vector<double> all_s1; all_s1.resize(p_F_N[N]);
 
-	vector<double> all_w00; all_w00.resize(p_F_N[N]);
-	vector<double> all_w01; all_w01.resize(p_F_N[N]);
-	vector<double> all_w10; all_w10.resize(p_F_N[N]);
-	vector<double> all_w11; all_w11.resize(p_F_N[N]);
-
+	std::vector<double> all_w00; all_w00.resize(p_F_N[N]);
+	std::vector<double> all_w01; all_w01.resize(p_F_N[N]);
+	std::vector<double> all_w10; all_w10.resize(p_F_N[N]);
+	std::vector<double> all_w11; all_w11.resize(p_F_N[N]);
 
 	int f0, f1, f2;
 	double x0, y0, x1, y1, x2, y2;
@@ -1921,10 +1920,10 @@ void GAP::SLIM(int N)
 		h55;
 	double* position = p_position_of_mesh[N].data();
 
-	int nnz = p_pardiso_ja[N].size();
-	p_pardiso_a[N].clear(); p_pardiso_b[N].clear();
-	p_pardiso_a[N].resize(nnz, 0.0);
-	p_pardiso_b[N].resize(2 * p_V_N[N], 0.0);
+	int nnz = p_solver_ja[N].size();
+	p_solver_a[N].clear(); p_solver_b[N].clear();
+	p_solver_a[N].resize(nnz, 0.0);
+	p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
 	for (int i = 0; i < p_F_N[N]; ++i)
 	{
@@ -1992,41 +1991,41 @@ void GAP::SLIM(int N)
 		r3 = area_now * ((1 + 1 / (det * det)) * j11 - tr * j00 / (det * det * det));
 
 
-		p_pardiso_b[N][f0] -= r0 * d00 + r1 * d10;
-		p_pardiso_b[N][f1] -= r0 * d01 + r1 * d11;
-		p_pardiso_b[N][f2] -= r0 * d02 + r1 * d12;
-		p_pardiso_b[N][f0 + p_V_N[N]] -= r2 * d00 + r3 * d10;
-		p_pardiso_b[N][f1 + p_V_N[N]] -= r2 * d01 + r3 * d11;
-		p_pardiso_b[N][f2 + p_V_N[N]] -= r2 * d02 + r3 * d12;
+		p_solver_b[N][f0] -= r0 * d00 + r1 * d10;
+		p_solver_b[N][f1] -= r0 * d01 + r1 * d11;
+		p_solver_b[N][f2] -= r0 * d02 + r1 * d12;
+		p_solver_b[N][f0 + p_V_N[N]] -= r2 * d00 + r3 * d10;
+		p_solver_b[N][f1 + p_V_N[N]] -= r2 * d01 + r3 * d11;
+		p_solver_b[N][f2 + p_V_N[N]] -= r2 * d02 + r3 * d12;
 
-		p_pardiso_a[N][p_id_h00[N][i]] += h00; p_pardiso_a[N][p_id_h01[N][i]] += h01; p_pardiso_a[N][p_id_h02[N][i]] += h02; p_pardiso_a[N][p_id_h03[N][i]] += h03; p_pardiso_a[N][p_id_h04[N][i]] += h04; p_pardiso_a[N][p_id_h05[N][i]] += h05;
-		p_pardiso_a[N][p_id_h11[N][i]] += h11; p_pardiso_a[N][p_id_h12[N][i]] += h12; p_pardiso_a[N][p_id_h13[N][i]] += h13; p_pardiso_a[N][p_id_h14[N][i]] += h14; p_pardiso_a[N][p_id_h15[N][i]] += h15;
-		p_pardiso_a[N][p_id_h22[N][i]] += h22; p_pardiso_a[N][p_id_h23[N][i]] += h23; p_pardiso_a[N][p_id_h24[N][i]] += h24; p_pardiso_a[N][p_id_h25[N][i]] += h25;
-		p_pardiso_a[N][p_id_h33[N][i]] += h33; p_pardiso_a[N][p_id_h34[N][i]] += h34; p_pardiso_a[N][p_id_h35[N][i]] += h35;
-		p_pardiso_a[N][p_id_h44[N][i]] += h44; p_pardiso_a[N][p_id_h45[N][i]] += h45;
-		p_pardiso_a[N][p_id_h55[N][i]] += h55;
+		p_solver_a[N][p_id_h00[N][i]] += h00; p_solver_a[N][p_id_h01[N][i]] += h01; p_solver_a[N][p_id_h02[N][i]] += h02; p_solver_a[N][p_id_h03[N][i]] += h03; p_solver_a[N][p_id_h04[N][i]] += h04; p_solver_a[N][p_id_h05[N][i]] += h05;
+		p_solver_a[N][p_id_h11[N][i]] += h11; p_solver_a[N][p_id_h12[N][i]] += h12; p_solver_a[N][p_id_h13[N][i]] += h13; p_solver_a[N][p_id_h14[N][i]] += h14; p_solver_a[N][p_id_h15[N][i]] += h15;
+		p_solver_a[N][p_id_h22[N][i]] += h22; p_solver_a[N][p_id_h23[N][i]] += h23; p_solver_a[N][p_id_h24[N][i]] += h24; p_solver_a[N][p_id_h25[N][i]] += h25;
+		p_solver_a[N][p_id_h33[N][i]] += h33; p_solver_a[N][p_id_h34[N][i]] += h34; p_solver_a[N][p_id_h35[N][i]] += h35;
+		p_solver_a[N][p_id_h44[N][i]] += h44; p_solver_a[N][p_id_h45[N][i]] += h45;
+		p_solver_a[N][p_id_h55[N][i]] += h55;
 
 	}
 
-	p_pardiso[N]->a = p_pardiso_a[N];
-	p_pardiso[N]->rhs = p_pardiso_b[N];
+	p_solver[N]->a = p_solver_a[N];
+	p_solver[N]->rhs = p_solver_b[N];
 
-	p_pardiso[N]->factorize();
-	p_pardiso[N]->pardiso_solver();
+	p_solver[N]->factorize();
+	p_solver[N]->pardiso_solver();
 
-	std::vector<double> result_d = p_pardiso[N]->result;
+	std::vector<double> result_d = p_solver[N]->result;
 
 	Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		negative_grad(i) = p_pardiso_b[N][i];
+		negative_grad(i) = p_solver_b[N][i];
 		d(i) = result_d[i];
 	}
 
 	double temp_t;
 	max_step(p_position_of_mesh[N], d, temp_t, N);
 
-	double alpha = min(1.0, 0.8 * temp_t);
+	double alpha = std::min(1.0, 0.8 * temp_t);
 	backtracking_line_search(p_position_of_mesh[N], d, negative_grad, alpha, N);
 	p_position_of_mesh[N] += alpha * d;
 
@@ -2035,7 +2034,7 @@ void GAP::SLIM(int N)
 
 void GAP::max_step(const Eigen::VectorXd& xx, const Eigen::VectorXd& dd, double& step, int N)
 {
-	double temp_t = numeric_limits<double>::infinity();
+	double temp_t = std::numeric_limits<double>::infinity();
 	int f0, f1, f2;
 	double a, b, c, b1, b2, tt, tt1, tt2;
 	double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
@@ -2157,10 +2156,10 @@ void GAP::CM(int N)
 		h44, h45,
 		h55;
 	double* position = p_position_of_mesh[N].data();
-	int nnz = p_pardiso_ja[N].size();
-	p_pardiso_a[N].clear(); p_pardiso_b[N].clear();
-	p_pardiso_a[N].resize(nnz, 0.0);
-	p_pardiso_b[N].resize(2 * p_V_N[N], 0.0);
+	int nnz = p_solver_ja[N].size();
+	p_solver_a[N].clear(); p_solver_b[N].clear();
+	p_solver_a[N].resize(nnz, 0.0);
+	p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
 	for (int i = 0; i < p_F_N[N]; ++i)
 	{
@@ -2259,37 +2258,37 @@ void GAP::CM(int N)
 
 		u = aa * walpha; v = bb * wbeta;
 
-		p_pardiso_b[N][f0] -= (u * a1x0 + v * a2x0);
-		p_pardiso_b[N][f1] -= (u * a1x1 + v * a2x1);
-		p_pardiso_b[N][f2] -= (u * a1x2 + v * a2x2);
-		p_pardiso_b[N][f0 + p_V_N[N]] -= (u * a1x3 + v * a2x3);
-		p_pardiso_b[N][f1 + p_V_N[N]] -= (u * a1x4 + v * a2x4);
-		p_pardiso_b[N][f2 + p_V_N[N]] -= (u * a1x5 + v * a2x5);
+		p_solver_b[N][f0] -= (u * a1x0 + v * a2x0);
+		p_solver_b[N][f1] -= (u * a1x1 + v * a2x1);
+		p_solver_b[N][f2] -= (u * a1x2 + v * a2x2);
+		p_solver_b[N][f0 + p_V_N[N]] -= (u * a1x3 + v * a2x3);
+		p_solver_b[N][f1 + p_V_N[N]] -= (u * a1x4 + v * a2x4);
+		p_solver_b[N][f2 + p_V_N[N]] -= (u * a1x5 + v * a2x5);
 
-		p_pardiso_a[N][p_id_h00[N][i]] += h00; p_pardiso_a[N][p_id_h01[N][i]] += h01; p_pardiso_a[N][p_id_h02[N][i]] += h02; p_pardiso_a[N][p_id_h03[N][i]] += h03; p_pardiso_a[N][p_id_h04[N][i]] += h04; p_pardiso_a[N][p_id_h05[N][i]] += h05;
-		p_pardiso_a[N][p_id_h11[N][i]] += h11; p_pardiso_a[N][p_id_h12[N][i]] += h12; p_pardiso_a[N][p_id_h13[N][i]] += h13; p_pardiso_a[N][p_id_h14[N][i]] += h14; p_pardiso_a[N][p_id_h15[N][i]] += h15;
-		p_pardiso_a[N][p_id_h22[N][i]] += h22; p_pardiso_a[N][p_id_h23[N][i]] += h23; p_pardiso_a[N][p_id_h24[N][i]] += h24; p_pardiso_a[N][p_id_h25[N][i]] += h25;
-		p_pardiso_a[N][p_id_h33[N][i]] += h33; p_pardiso_a[N][p_id_h34[N][i]] += h34; p_pardiso_a[N][p_id_h35[N][i]] += h35;
-		p_pardiso_a[N][p_id_h44[N][i]] += h44; p_pardiso_a[N][p_id_h45[N][i]] += h45;
-		p_pardiso_a[N][p_id_h55[N][i]] += h55;
+		p_solver_a[N][p_id_h00[N][i]] += h00; p_solver_a[N][p_id_h01[N][i]] += h01; p_solver_a[N][p_id_h02[N][i]] += h02; p_solver_a[N][p_id_h03[N][i]] += h03; p_solver_a[N][p_id_h04[N][i]] += h04; p_solver_a[N][p_id_h05[N][i]] += h05;
+		p_solver_a[N][p_id_h11[N][i]] += h11; p_solver_a[N][p_id_h12[N][i]] += h12; p_solver_a[N][p_id_h13[N][i]] += h13; p_solver_a[N][p_id_h14[N][i]] += h14; p_solver_a[N][p_id_h15[N][i]] += h15;
+		p_solver_a[N][p_id_h22[N][i]] += h22; p_solver_a[N][p_id_h23[N][i]] += h23; p_solver_a[N][p_id_h24[N][i]] += h24; p_solver_a[N][p_id_h25[N][i]] += h25;
+		p_solver_a[N][p_id_h33[N][i]] += h33; p_solver_a[N][p_id_h34[N][i]] += h34; p_solver_a[N][p_id_h35[N][i]] += h35;
+		p_solver_a[N][p_id_h44[N][i]] += h44; p_solver_a[N][p_id_h45[N][i]] += h45;
+		p_solver_a[N][p_id_h55[N][i]] += h55;
 	}
 
-	p_pardiso[N]->a = p_pardiso_a[N];
-	p_pardiso[N]->rhs = p_pardiso_b[N];
+	p_solver[N]->a = p_solver_a[N];
+	p_solver[N]->rhs = p_solver_b[N];
 
-	p_pardiso[N]->factorize();
-	p_pardiso[N]->pardiso_solver();
+	p_solver[N]->factorize();
+	p_solver[N]->pardiso_solver();
 
-	vector<double> result_d = p_pardiso[N]->result;
+	std::vector<double> result_d = p_solver[N]->result;
 
 	Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
 	for (int i = 0; i < 2 * p_V_N[N]; i++)
 	{
-		negative_grad(i) = p_pardiso_b[N][i];
+		negative_grad(i) = p_solver_b[N][i];
 		d(i) = result_d[i];
 	}
 
-	p_pardiso[N]->free_numerical_factorization_memory();
+	p_solver[N]->free_numerical_factorization_memory();
 
 	double temp_t;
 	max_step(p_position_of_mesh[N], d, temp_t, N);

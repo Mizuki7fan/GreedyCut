@@ -20,8 +20,8 @@ void PointFinding::Set(std::string metric)
 }
 
 void PointFinding::Find(std::vector<std::pair<int, double>>& result)
-{//主体函数，用于找点
-	if (Metric == "RealDis")
+{
+	if (Metric == "Dijkstra")
 		FindByRealDis(result);
 	else if (Metric == "Neighbourhood")
 		FindByNeighbourhood(result);
@@ -30,13 +30,12 @@ void PointFinding::Find(std::vector<std::pair<int, double>>& result)
 
 void PointFinding::FindLocalMaximizer()
 {
-	//找局部极大值点
-	LocalMaximizer.resize(MC.n_vertices, 0);
-	for (int i = 0; i < MC.n_vertices; i++)
+	LocalMaximizer.resize(MC.NVertices, 0);
+	for (int i = 0; i < MC.NVertices; i++)
 	{
 		if (LocalMaximizer[i] == 1)
 			continue;
-		for (auto a : MC.vv[i])
+		for (auto a : MC.VV[i])
 		{
 			if (vertex_distortion[a] < vertex_distortion[i])
 				LocalMaximizer[a] = 1;
@@ -49,7 +48,7 @@ void PointFinding::FindLocalMaximizer()
 std::vector<int> PointFinding::GetLocalMaximizer()
 {
 	std::vector<int> Result;
-	for (int i = 0; i < MC.n_vertices; i++)
+	for (int i = 0; i < MC.NVertices; i++)
 		if (LocalMaximizer[i] == 0)
 			Result.push_back(i);
 	return Result;
@@ -141,7 +140,7 @@ void PointFinding::ComputeVertexDistortion()
 
 void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 {
-	std::vector<double> Priority(MC.n_vertices,0);
+	std::vector<double> Priority(MC.NVertices,0);
 
 	for (int i = 0; i<LocalMaximizer.size(); i++)
 	{
@@ -150,34 +149,34 @@ void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 			continue;
 		}
 		double v_dis = vertex_distortion[i];
-		std::vector<int>& is_visited = MC.dijkstra_isvisited[i];
-		std::vector<double>& distance = MC.V_D[i];
-		std::priority_queue<node>& que = MC.dijkstra_cache[i];
-		std::vector<int>& v_p = MC.V_VP[i];
+		std::vector<int>& is_visited = MC.DijkstraIsVisited[i];
+		std::vector<double>& distance = MC.Vd[i];
+		std::priority_queue<node>& que = MC.DijkstraCache[i];
+		std::vector<int>& v_p = MC.VVp[i];
 		if (is_visited.size() == 0)
 		{
-			is_visited.resize(MC.n_vertices, 0);
-			distance.resize(MC.n_vertices, DBL_MAX);
+			is_visited.resize(MC.NVertices, 0);
+			distance.resize(MC.NVertices, DBL_MAX);
 			distance[i] = 0;
 			que.push(node(i, 0));
-			v_p.resize(MC.n_vertices, -1);
+			v_p.resize(MC.NVertices, -1);
 			v_p[i] = i;
 		}
 		else
 		{
 			//发生概率应该不高，可能有问题
-			double level = MC.avg_el * MC.n_edges;
-			for (int j= 0; j < MC.V_D[i].size(); j++)
+			double level = MC.AVG_EL * MC.NEdges;
+			for (int j= 0; j < MC.Vd[i].size(); j++)
 			{
 				if (is_visited[j] == 0)
 					continue;
 				else if (v_dis<vertex_distortion[j])
 					{
-						if (level > MC.V_D[i][j])
-							level = MC.V_D[i][j];
+						if (level > MC.Vd[i][j])
+							level = MC.Vd[i][j];
 					}
 			}
-			if (level < MC.avg_el * MC.n_edges)
+			if (level < MC.AVG_EL * MC.NEdges)
 			{
 				Priority[i] = level;
 				continue;
@@ -195,20 +194,20 @@ void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 			if (is_visited[tmp.id])
 				continue;
 			is_visited[tmp.id] = 1;
-			for (int u = 0; u < MC.vv[tmp.id].size(); u++)
+			for (int u = 0; u < MC.VV[tmp.id].size(); u++)
 			{
-				int vid = MC.vv[tmp.id][u];
-				int eid = MC.ve[tmp.id][u];
-				if (distance[tmp.id] + MC.el[eid] < distance[vid])
+				int vid = MC.VV[tmp.id][u];
+				int eid = MC.VE[tmp.id][u];
+				if (distance[tmp.id] + MC.EL[eid] < distance[vid])
 				{
-					distance[vid] = distance[tmp.id] + MC.el[eid];
+					distance[vid] = distance[tmp.id] + MC.EL[eid];
 					que.push(node(vid, distance[vid]));
 					v_p[vid] = tmp.id;
 				}
 			}
 			if (vertex_distortion[tmp.id] > v_dis)
 			{
-				if (distance[tmp.id] > MC.avg_el)
+				if (distance[tmp.id] > MC.AVG_EL)
 				{
 					Priority[i] = distance[tmp.id];
 				}
@@ -217,23 +216,23 @@ void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 		}
 	}
 	for (int i = 0; i < Priority.size(); i++)
-		if (Priority[i] >= MC.avg_el)
+		if (Priority[i] >= MC.AVG_EL)
 			result.push_back({ i,Priority[i] });
 }
 
 void PointFinding::FindByNeighbourhood(std::vector<std::pair<int, double>>&FeaturePoints)
 {	
 	FeaturePoints.clear();
-	std::vector<int> Priority(MC.n_vertices, 0);
+	std::vector<int> Priority(MC.NVertices, 0);
 	for (int i = 0; i < OriMesh.n_vertices(); i++)
 	{
 		if (LocalMaximizer[i] == 1)
 			continue;
 		double v_dis = vertex_distortion[i];
-		std::vector<int> is_visited(MC.n_vertices, 0);
+		std::vector<int> is_visited(MC.NVertices, 0);
 		is_visited[i] = 1;
 		std::vector<int> now_competitor(0), next_competitor(0);
-		now_competitor = MC.vv[i];
+		now_competitor = MC.VV[i];
 		for (int u = 0; u < now_competitor.size(); u++)
 		{
 			is_visited[now_competitor[u]] = 1;
@@ -249,7 +248,7 @@ void PointFinding::FindByNeighbourhood(std::vector<std::pair<int, double>>&Featu
 			next_competitor.clear();
 			for (auto a : now_competitor)
 			{
-				for (auto b : MC.vv[a])
+				for (auto b : MC.VV[a])
 				{
 					if (!is_visited[b])
 					{

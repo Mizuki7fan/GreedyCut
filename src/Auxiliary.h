@@ -1,0 +1,46 @@
+#pragma once
+#include <string>
+#include <fstream>
+#include "MeshCache.h"
+
+struct Option
+{
+	std::string modelName;
+	std::string modelPath;
+	bool isDebug=false;
+	bool isHighGenus = false;
+	std::string PS_method = "Dijkstra";
+	std::string PF_vertex_priority_metric = "Neighbourhood";
+	std::string BanArea_Method = "NonConnect";
+	int BanArea_Dn = 10;
+	double BanArea_alpha = 0.1;
+	std::string BanArea_Metric = "Dijkstra";
+	double BanArea_ShrinkRate = 0.9;
+	int Influence_Threshold = 20;
+	double Distortion_Threshold=0.01;
+	double Trimming_Rate = 0.01;
+	int Max_AddCount = 30;
+
+
+	Option::Option(std::string modelPath, std::string optPath);
+};
+
+class Algorithm
+{
+	Algorithm();
+	~Algorithm();
+public:
+	//求一个点到网格上所有点的距离
+	static void Dijkstra_all(MeshCache& MCache, int k);
+	//求一个group点之间两两的路径
+	static void Dijkstra_group(MeshCache& MCache, std::vector<int>& lmk);
+	//求一个group点之间的最小生成树
+	static void Kruskal(MeshCache& MCache, std::vector<int>& lmk, std::vector<int>& cutvertex, std::vector<int>& cutedge);
+	static void Kruskal(std::vector<int>& lmk, std::priority_queue<PathInfo> que, std::vector<PathInfo>& Result);
+	static void FindPath(std::vector<int>& v_p, int e_p, std::vector<int>& path_v);
+	static void UpdateNeighbourhood(MeshCache& MCache, int k, int v);
+	static void Dijkstra_with_restrict(MeshCache& MCache, int s_p, std::vector<double>& weight, std::vector<int>&, std::vector<double>&);
+	static void Dijkstra_with_nearest2(MeshCache& MCache, int s_p, std::vector<int>& is_target, std::vector<int>& path);
+};
+
+

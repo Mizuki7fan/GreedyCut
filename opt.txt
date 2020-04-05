@@ -1,58 +1,31 @@
-#结果输出目录
-OutputDir=../Output/
+#option
 
-#==============InterResult==========
-#是否进行中间结果的输出 Yes/NO
-InterResultOutput=Yes
-#==============PointSamplingCfg===========
-#采样方法 RealDistance/GeodesicDistance/Dijkstra
-SampleMethod=Dijkstra
-#采样初始点的起点，可以指定也可以随机Random
-SampleFirstPoint=0
+#value: 0/1
+isDebug=0
+#value: 0/1
+isHighGenus=1
 
-#==============PointFindingCfg=======
-#如何度量顶点的优先级？ RealDis/Neighbourhood/
-VertexPriorityMetric=Neighbourhood
+#PointSampling
+#value: Dijkstra/GeodesicDistance/RealDistance
+PointSampling_method=Dijkstra
 
-#==============禁止区域的半径，测地距离
-Dn=10
-#==============衰减系数
-DecayRate=0.9
-#==============BanAreaMethod
-#算禁止区域的时候，要不要把找到的点连接到现有的Cut上？
-BanAreaMethod=Connect
-#==============MaxConnectedRegionArea
-Alpha=0.1
-#==============GAP 成为Fix点的阈值条件
-FixThreshold=20
-#==============GAP中每个点的禁止区域半径
-GAPForbddenRadius=5
-#==============GAPFilteringRate扭曲下降的阈值
-GAPFilteringRate=0.01;
-#==============GAP并行数
-GAPParrCount=8
-#==============AAP的并行数
-AAPParrCount=8
-#==============AAP停止条件
-AAPTrimmingRate=0.01
-#==============AAP最大加点数目
-AAPMaxAddingCount=100
+#VertexPriorityMetric
+#value: RealDis/Neighbourhood
+PointFinding_vertex_priority_metric=Neighbourhood
 
+#BanAreaMethod
+#value: NonConnect/Connect
+BanArea_Method=NonConnect
+BanArea_Dn=10
+BanArea_Alpha=0.1
+#value: Dijkstra/Neighbourhood
+BanArea_Metric=Dijkstra
+BanArea_ShrinkRate=0.9
 
-#论文中的流程对应的配置：
-#从网格中随机选取一个点Vi                                               
-#即：SampleFirstPoint=Random
-#对于网格上其他的所有点计算到Vi的dijkstra距离，找与其最远的点Vj，将Dij作为初始的割缝               
-#即：SampleMethod=Dijkstra
-#沿着割缝进行切割，做一个ACAP的参数化(KPNewton)
-#计算每个顶点的等距扭曲，找所有局部极大值点(但不需要找顶点的等级)
-#设定正数dn，计算禁止区域R，定义是距离极大值点和距离切缝距离都小于dn的区域为禁止区域
-#即：Dn=10
-#设定衰减系数，论文中是0.9
-#从可行区域中挑选最大的连通区域，如果最大连通区域的面积比较小，则修改Dn进行回退
-#即：Alpha=0.1
-#GAP设置
-#设定Fix点的筛选条件
-#即FixThreshold=20
-#lmk点的禁止区域半径，算所有lmk的禁止区域，在所有点的禁止区域之外
-#即GAPForbddenRadius=5
+#GAP
+Influence_Threshold=20
+Distortion_Threshold=0.01
+
+#AAP
+Trimming_Rate=0.01
+Max_AddCount=30

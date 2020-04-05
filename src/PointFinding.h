@@ -1,5 +1,5 @@
 #pragma once
-#include "../MeshDefinition/MeshCache.h"
+#include "MeshCache.h"
 //用于从网格中选取顶点
 class PointFinding
 {
