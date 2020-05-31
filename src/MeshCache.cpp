@@ -1,6 +1,6 @@
 #include "MeshCache.h"
 
-MeshCache::MeshCache(Mesh &mesh)
+MeshCache::MeshCache(Mesh& mesh)
 {
 	NVertices = mesh.n_vertices();
 	NEdges = mesh.n_edges();
@@ -34,7 +34,7 @@ MeshCache::MeshCache(Mesh &mesh)
 			VVE[v.idx()][v1.idx()] = e.idx();
 		}
 	}
-	
+
 	EL.resize(NEdges);
 	EV.resize(NEdges, std::vector<int>(2));
 	AVG_EL = 0;

@@ -4,11 +4,11 @@
 class Solver
 {
 private:
-    /* data */
+	/* data */
 public:
 	virtual ~Solver() {};
-	virtual void pardiso_init()=0;
-	virtual bool factorize() =0;
+	virtual void pardiso_init() = 0;
+	virtual bool factorize() = 0;
 	virtual void pardiso_solver() {};
 	virtual void free_numerical_factorization_memory() {};
 

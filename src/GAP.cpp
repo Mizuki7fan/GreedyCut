@@ -4,15 +4,17 @@
 #include "Solver/PardisoSolver.h"
 #elif defined(USE_MKL_PARDISO)
 #include "Solver/MKLPardisoSolver.h"
-#endif // USE_PARDISO
+#elif defined(USE_EIGEN)
+#include "Solver/EigenLinSolver.h"
+#endif
 
-GAP::GAP(Mesh &mesh,  MeshCache& MC,std::vector<std::pair<int,double>>& lmk)
-	:ClosedMesh(mesh),MC(MC),landmark(lmk)
+GAP::GAP(Mesh& mesh, MeshCache& MC, std::vector<std::pair<int, double>>& lmk)
+	:ClosedMesh(mesh), MC(MC), landmark(lmk)
 {
 }
 
-void GAP::Set(double InfluenceThreshold,double FilteringThreshold)
-{	
+void GAP::Set(double InfluenceThreshold, double FilteringThreshold)
+{
 	this->InfluenceThreshold = InfluenceThreshold;
 	this->DistortionThreshold = FilteringThreshold;
 }
@@ -199,7 +201,6 @@ bool GAP::add1p(bool startfromtutte, int parr_count)
 #pragma omp parallel for num_threads(step)
 	for (int ii = 0; ii < step; ii++)
 	{
-		//如果这个点在边界上，则直接跳过不执行
 		if (p_v_seam[ii][LmkCanditate[ii]] == 1)
 		{
 			des_value[ii] = 0;
@@ -335,7 +336,6 @@ bool GAP::add1p(bool startfromtutte, int parr_count)
 			}
 			p_VV_ids[ii][boundary_vs.back()].push_back(boundary_vs.front());
 		}
-		//意味不明
 		rePre_calculate(ii);
 		BPE(ii);
 		double energy_decrease = p_energy_prev_seam[ii] - p_energy_area[ii];
@@ -348,7 +348,7 @@ bool GAP::add1p(bool startfromtutte, int parr_count)
 	for (int a = 0; a < step; a++)
 		value.push_back(LmkCanditate[a]);
 	for (int m = 0; m < step; m++)
-	{//下降小于阈值
+	{
 		if (des_value[m] < DistortionThreshold)
 		{
 			auto it = std::find(LmkCanditate.begin(), LmkCanditate.end(), value[m]);
@@ -448,7 +448,9 @@ void GAP::BPE()
 	solver = new PardisoSolver();
 #elif USE_MKL_PARDISO
 	solver = new MKLPardisoSolver();
-#endif // USE_PARDISO
+#elif USE_EIGEN
+	solver = new EigenLinSolver();
+#endif
 	solver->ia = solver_ia;
 	solver->ja = solver_ja;
 	solver->a.resize(solver_ja.size());
@@ -554,13 +556,6 @@ void GAP::BPE()
 
 	time_end = clock();
 	time_consumption = (time_end - time_beg) / 1000.0;
-
-	//for (size_t i = 0; i < energy_area_process.size(); i++)
-	//{
-//		std::cout << fixed << setprecision(8) << energy_area_process[i] << endl;
-//	}
-	//std::cout << "COMP ====== time_consumption: " << time_consumption << " s;slim_iter: " << slim_iter_num << "; cm_iter: " << cm_iter_num << "; sum_iter: " << sum_iter_num << endl;
-
 
 	delete solver;
 	solver = NULL;
@@ -710,7 +705,6 @@ void GAP::TutteOp()
 	double delta_angle = 2 * M_PI / boundary_num;
 	double area_1_factor = sqrt(1.0 / M_PI);
 
-	//position_of_mesh.resize(2 * V_N);
 	for (int i = 0; i < boundary_num; ++i)
 	{
 		auto v_h = mEsh.to_vertex_handle(he_start);
@@ -788,7 +782,9 @@ void GAP::TutteOp()
 	solver = new PardisoSolver();
 #elif USE_MKL_PARDISO
 	solver = new MKLPardisoSolver();
-#endif // USE_PARDISO
+#elif USE_EIGEN
+	solver = new EigenLinSolver();
+#endif
 
 	solver->ia = pardiso_it;
 	solver->ja = pardiso_jt;
@@ -873,7 +869,6 @@ void GAP::Energysource()
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
 			printf("%s%d", "det", det);
-//			cout << "det " << det << endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 
@@ -1612,7 +1607,9 @@ void GAP::BPE(int N)
 	p_solver[N] = new PardisoSolver();
 #elif USE_MKL_PARDISO
 	p_solver[N] = new MKLPardisoSolver();
-#endif // USE_PARDISO
+#elif USE_EIGEN
+	p_solver[N] = new EigenLinSolver();
+#endif
 	p_solver[N]->ia = p_solver_ia[N];
 	p_solver[N]->ja = p_solver_ja[N];
 	p_solver[N]->a.resize(p_solver_ja[N].size());
@@ -1624,7 +1621,6 @@ void GAP::BPE(int N)
 	std::vector<double> energy_area_process;
 	energy_area_process.reserve(MAX_ITER_NUM);
 	Energysource(N);
-	//更新能量值
 	energy_area_process.push_back(p_energy_area[N]);
 	double energy_pre = 0;
 	double energy_cur = p_energy_uniform[N];
@@ -1761,7 +1757,6 @@ void GAP::Energysource(int N)
 		det = j00 * j11 - j01 * j10;
 		if (det <= 0)
 			printf("%s%d\n", "det:", det);
-//			cout << "det " << det << endl;
 		E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
 		E_2 = 1.0 / (det * det) * E_1;
 

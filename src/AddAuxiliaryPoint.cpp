@@ -5,6 +5,7 @@ AAP::AAP(Mesh& mesh, MeshCache& MC, std::vector<int>& landmark)
 {
 }
 
+
 void AAP::Set(double TrimmingRate, int MaxAddCount)
 {
 	this->TrimmingRate = TrimmingRate;
@@ -84,7 +85,7 @@ void AAP::Greed1_Op()
 			min_id = i;
 		}
 	}
-	if (TreeLength - min_dis < TrimmingRate*MC.Lbb + 1e-10)
+	if (TreeLength - min_dis < TrimmingRate * MC.Lbb + 1e-10)
 		min_id = -1;
 	if (min_id == -1)
 		greed1_ok = true;

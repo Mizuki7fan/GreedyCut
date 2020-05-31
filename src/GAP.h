@@ -13,8 +13,8 @@
 class GAP
 {
 public:
-	GAP(Mesh &mesh,MeshCache& MC,std::vector<std::pair<int,double>>& lmk);
-	void Set(double InfluenceThreshold,double FilteringThreshold);
+	GAP(Mesh& mesh, MeshCache& MC, std::vector<std::pair<int, double>>& lmk);
+	void Set(double InfluenceThreshold, double FilteringThreshold);
 	void SetSolver(double convgence_con_rate, int MAX_ITER_NUM, double bound_distortion_K);
 	void Run();
 	~GAP();
@@ -62,7 +62,7 @@ public:
 
 private:
 	//BASIC
-	Mesh ClosedMesh,mEsh;
+	Mesh ClosedMesh, mEsh;
 	MeshCache& MC;
 	std::vector<std::pair<int, double>> landmark;
 
@@ -74,7 +74,7 @@ private:
 
 	int F_N, V_N;
 	double g_norm;
-	std::vector<double> area,area_uniform, area_src;
+	std::vector<double> area, area_uniform, area_src;
 	std::vector<int> F0, F1, F2;
 	std::vector<std::vector<int>> VV_ids;
 	Eigen::VectorXd position_of_mesh;
@@ -96,8 +96,8 @@ private:
 
 	//BPE
 	double energy_prev_seam, energy_uniform, energy_area;
-	std::vector<double> source_p00,source_p01,source_p10,source_p11;
-	std::vector<double> update_p00,update_p01,update_p10,update_p11;
+	std::vector<double> source_p00, source_p01, source_p10, source_p11;
+	std::vector<double> update_p00, update_p01, update_p10, update_p11;
 
 	std::vector<int> id_h00; std::vector<int> id_h01; std::vector<int> id_h02; std::vector<int> id_h03; std::vector<int> id_h04; std::vector<int> id_h05;
 	std::vector<int> id_h11; std::vector<int> id_h12; std::vector<int> id_h13; std::vector<int> id_h14; std::vector<int> id_h15;
@@ -134,5 +134,4 @@ private:
 	std::vector<double> p_changetocm_flag;
 	std::vector<double> p_g_norm;
 	std::vector<Solver*> p_solver;
-
 };

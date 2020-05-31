@@ -34,8 +34,8 @@ int main(int argc, char* argv[])
 	PS.Set(opt.PS_method);
 	std::vector<int> SamplePoints;
 	PS.ComputeSamples(SamplePoints);
-	
-	MeshCut Mcut(mesh,MC);
+
+	MeshCut Mcut(mesh, MC);
 	Mcut.Set(SamplePoints);
 	Mcut.Connect();
 	Mcut.MakeSeam();
@@ -56,12 +56,11 @@ int main(int argc, char* argv[])
 	}
 	printf("PF1\n");
 	PointFinding PF(mesh, CutedMesh, MC);
-	//PF.Set(opt.PF_vertex_priority_metric);
 	PF.FindLocalMaximizer();
 
 	printf("Cut2\n");
 	MeshCut Mcut2(mesh, MC);
-	Mcut2.SetBanCondition(PF.GetLocalMaximizer(), Mcut.GetCutvertex(),opt.BanArea_Method);
+	Mcut2.SetBanCondition(PF.GetLocalMaximizer(), Mcut.GetCutvertex(), opt.BanArea_Method);
 	Mcut2.CalcBanArea(opt.BanArea_Dn, opt.BanArea_Metric, opt.BanArea_alpha, opt.BanArea_ShrinkRate);
 	std::vector<int> AllowedArea = Mcut2.GetMaxConnectedRegion();
 	std::vector<int> cut2Edges, cut2Vertices;
@@ -92,8 +91,8 @@ int main(int argc, char* argv[])
 	PF2.Find(VertexPriority);
 
 	printf("GAP\n");
-	GAP gap(mesh, MC,VertexPriority);
-	gap.Set(opt.Influence_Threshold,opt.Distortion_Threshold);
+	GAP gap(mesh, MC, VertexPriority);
+	gap.Set(opt.Influence_Threshold, opt.Distortion_Threshold);
 	gap.SetSolver(1e-6, 500, 250);
 	gap.Run();
 	std::vector<int> gapResult = gap.getResult();
@@ -104,8 +103,20 @@ int main(int argc, char* argv[])
 	aap.Run();
 
 	std::vector<int> Result = aap.GetResult();
-	for (auto a : Result)
-		printf("%i\n", a);
-	printf("Fin\n");
 
+	std::ofstream result("landmark.txt");
+	for (auto a : Result)
+	{
+		result << a << std::endl;
+		printf("%i\n", a);
+	}
+
+	MeshCut MCut3(mesh, MC);
+	MCut3.Set(Result);
+	MCut3.Connect();
+	MCut3.MakeSeam();
+	Mesh CutedMesh3 = MCut3.GetCutedMesh();
+	OpenMesh::IO::write_mesh(CutedMesh3, "cuted_mesh.obj");
+
+	printf("finish!");
 }

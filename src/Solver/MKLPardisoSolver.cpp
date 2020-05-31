@@ -23,8 +23,8 @@ MKLPardisoSolver::~MKLPardisoSolver()
 	phase = -1; /* Release internal memory. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-			&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
-			iparm, &msglvl, &ddum, &ddum, &error);
+		&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
+		iparm, &msglvl, &ddum, &ddum, &error);
 }
 
 void MKLPardisoSolver::pardiso_init()
@@ -98,8 +98,8 @@ void MKLPardisoSolver::pardiso_init()
 	phase = 11;
 	//cout << "err" << endl;
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-			iparm, &msglvl, &ddum, &ddum, &error);
+		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+		iparm, &msglvl, &ddum, &ddum, &error);
 	//cout << "fuck";
 	if (error != 0)
 	{
@@ -118,8 +118,8 @@ bool MKLPardisoSolver::factorize()
 	//  iparm[32] = 1; /* compute determinant */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-			iparm, &msglvl, &ddum, &ddum, &error);
+		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+		iparm, &msglvl, &ddum, &ddum, &error);
 
 #ifdef PLOTS_PARDISO
 	printf("\nFactorization completed ... ");
@@ -167,8 +167,8 @@ void MKLPardisoSolver::pardiso_solver()
 	iparm[7] = 1; /* Max numbers of iterative refinement steps. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-			&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
-			iparm, &msglvl, rhs.data(), result.data(), &error);
+		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
+		iparm, &msglvl, rhs.data(), result.data(), &error);
 
 #ifdef PLOTS_PARDISO
 	printf("\nSolve completed ... ");
@@ -186,6 +186,6 @@ void MKLPardisoSolver::free_numerical_factorization_memory()
 	phase = 0; /* Release internal memory. */
 
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase,
-			&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
-			iparm, &msglvl, &ddum, &ddum, &error);
+		&num, &ddum, ia.data(), ja.data(), &idum, &nrhs,
+		iparm, &msglvl, &ddum, &ddum, &error);
 }

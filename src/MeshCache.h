@@ -53,10 +53,10 @@ public:
 class MeshCache
 {
 public:
-	MeshCache(Mesh &mesh);
+	MeshCache(Mesh& mesh);
 	~MeshCache();
 
-	int NVertices=-1;
+	int NVertices = -1;
 	int NEdges;
 	int NFaces;
 	std::vector<double> Vx, Vy, Vz;

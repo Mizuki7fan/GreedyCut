@@ -73,10 +73,10 @@ void PardisoSolver::pardiso_init()
 	 /*var = getenv("OMP_NUM_THREADS");
 	 if(var != NULL)
 	   sscanf( var, "%d", &num_procs );
-	 else 
+	 else
 	  throw std::runtime_error("Set environment OMP_NUM_THREADS to 1");*/
 
-	num_procs =12;
+	num_procs = 12;
 	iparm[2] = num_procs;
 
 	maxfct = 1;		/* Maximum number of numerical factorizations.  */
@@ -125,7 +125,7 @@ bool PardisoSolver::factorize()
 		&num, a.data(), ia.data(), ja.data(), &idum, &nrhs,
 		iparm, &msglvl, &ddum, &ddum, &error, dparm);
 
-	
+
 #ifdef PLOTS_PARDISO
 	printf("\nFactorization completed ... ");
 #endif
@@ -135,7 +135,7 @@ bool PardisoSolver::factorize()
 
 void PardisoSolver::pardiso_solver()
 {
-	
+
 
 #ifdef PLOTS_PARDISO
 	/* -------------------------------------------------------------------- */

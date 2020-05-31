@@ -5,7 +5,7 @@
 class PointSampling
 {
 public:
-	PointSampling(MeshCache &MC);
+	PointSampling(MeshCache& MC);
 	~PointSampling();
 	void Set(std::string method_id);
 	void ComputeSamples(std::vector<int>& Result);

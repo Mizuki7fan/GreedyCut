@@ -2,9 +2,9 @@
 #include <random>
 
 
-PointFinding::PointFinding(const Mesh&m, const Mesh&pm,MeshCache& MCache):OriMesh(m),ParaedMesh(pm),MC(MCache)
+PointFinding::PointFinding(const Mesh& m, const Mesh& pm, MeshCache& MCache) :OriMesh(m), ParaedMesh(pm), MC(MCache)
 {
-	
+
 	PrepareComputeDistortion();
 	ComputeFaceDistortion();
 	ComputeVertexDistortion();
@@ -122,7 +122,6 @@ void PointFinding::ComputeFaceDistortion()
 
 void PointFinding::ComputeVertexDistortion()
 {
-	//根据面片扭曲计算顶点扭曲
 	vertex_distortion.resize(OriMesh.n_vertices());
 	for (int i = 0; i < vertex_distortion.size(); i++)
 	{
@@ -138,11 +137,11 @@ void PointFinding::ComputeVertexDistortion()
 	}
 }
 
-void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
+void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>& result)
 {
-	std::vector<double> Priority(MC.NVertices,0);
+	std::vector<double> Priority(MC.NVertices, 0);
 
-	for (int i = 0; i<LocalMaximizer.size(); i++)
+	for (int i = 0; i < LocalMaximizer.size(); i++)
 	{
 		if (LocalMaximizer[i] == 1)
 		{
@@ -164,17 +163,16 @@ void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 		}
 		else
 		{
-			//发生概率应该不高，可能有问题
 			double level = MC.AVG_EL * MC.NEdges;
-			for (int j= 0; j < MC.Vd[i].size(); j++)
+			for (int j = 0; j < MC.Vd[i].size(); j++)
 			{
 				if (is_visited[j] == 0)
 					continue;
-				else if (v_dis<vertex_distortion[j])
-					{
-						if (level > MC.Vd[i][j])
-							level = MC.Vd[i][j];
-					}
+				else if (v_dis < vertex_distortion[j])
+				{
+					if (level > MC.Vd[i][j])
+						level = MC.Vd[i][j];
+				}
 			}
 			if (level < MC.AVG_EL * MC.NEdges)
 			{
@@ -220,8 +218,8 @@ void PointFinding::FindByRealDis(std::vector<std::pair<int, double>>&result)
 			result.push_back({ i,Priority[i] });
 }
 
-void PointFinding::FindByNeighbourhood(std::vector<std::pair<int, double>>&FeaturePoints)
-{	
+void PointFinding::FindByNeighbourhood(std::vector<std::pair<int, double>>& FeaturePoints)
+{
 	FeaturePoints.clear();
 	std::vector<int> Priority(MC.NVertices, 0);
 	for (int i = 0; i < OriMesh.n_vertices(); i++)
@@ -265,16 +263,15 @@ void PointFinding::FindByNeighbourhood(std::vector<std::pair<int, double>>&Featu
 			for (auto a : now_competitor)
 			{
 				if (v_dis < vertex_distortion[a])
-				{//我怎么会输？
+				{
 					mudeki = 0;
 					break;
 				}
 				else
-				{//彩笔，还有脸再来？
+				{
 					is_visited[a] = 1;
 				}
 			}
-			//挑战结束
 			if (mudeki == 0)
 			{
 				Priority[i] = level;

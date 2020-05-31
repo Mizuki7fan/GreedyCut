@@ -34,7 +34,7 @@ void PointSampling::ComputeSamples(std::vector<int>& Result)
 			double dist = 0.0;
 			for (int j = 0; j < MCache.NVertices; j++)
 			{
-				
+
 				double disttemp = PointSetRealDistance(j, selectpts);
 				if (disttemp > dist)
 				{
@@ -99,7 +99,6 @@ void PointSampling::ComputeSamplesFromSelectedRegion(std::string method, std::ve
 	int e_p = -1;
 	if (method == "RealDistance")
 	{
-		//Âè?Êâ?1‰∏?ÁÇ?
 		int farthestid = 0;
 		double dist = 0.0;
 		for (int j = 0; j < MCache.NVertices; j++)

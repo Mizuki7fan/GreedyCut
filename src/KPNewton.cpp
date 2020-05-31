@@ -4,7 +4,9 @@
 #include "Solver/PardisoSolver.h"
 #elif defined(USE_MKL_PARDISO)
 #include "Solver/MKLPardisoSolver.h"
-#endif // USE_PARDISO
+#elif defined(USE_EIGEN)
+#include "Solver/EigenLinSolver.h"
+#endif
 
 #define M_2_SQRTPI 1.12837916709551257390   // 2/sqrt(pi)
 
@@ -25,11 +27,13 @@ KPNewton::KPNewton(Mesh& m)
 			break;
 		}
 	}
-	#ifdef USE_PARDISO
+#ifdef USE_PARDISO
 	solver = new PardisoSolver();
-	#elif USE_MKL_PARDISO
+#elif USE_MKL_PARDISO
 	solver = new MKLPardisoSolver();
-	#endif // USE_PARDISO
+#elif USE_EIGEN
+	solver = new EigenLinSolver();
+#endif 
 }
 
 KPNewton::~KPNewton()
@@ -444,7 +448,7 @@ void KPNewton::RunFree(const EnergyType& etype)
 			EnergyIsNan = true;
 			break;
 		}
-		while (stepDirlen * lsa > ls_MinStep && e + lsa * energyGrad < newEnergy)
+		while (stepDirlen * lsa > ls_MinStep&& e + lsa * energyGrad < newEnergy)
 		{
 			lsa = ls_StepFac * lsa;
 #pragma omp parallel for

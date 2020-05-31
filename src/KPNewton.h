@@ -19,7 +19,7 @@ public:
 	void PrepareDataFree(void);
 	// Optimize parameterization using a type of energy
 	void RunFree(const EnergyType& etype);
-	bool EnergyNan() {return EnergyIsNan; };
+	bool EnergyNan() { return EnergyIsNan; };
 
 	// Compute parameters using MIPS
 	static void ComputeMIPS(double& energy, double& alpha1, double& alpha2,
@@ -68,5 +68,5 @@ private:
 
 public:
 	Solver* solver;
-	
+
 };

@@ -2,48 +2,47 @@
 
 Option::Option(std::string modelPath, std::string optPath)
 {
-		this->modelPath = modelPath;
-		this->modelName = modelPath.substr(modelPath.find_last_of('\/') + 1, modelPath.length());//for windows
-		std::ifstream input(optPath);
-		std::string line, key, value;
-		int position;
-		while (std::getline(input, line))
-		{
-			if (line[0] == '#')
-				continue;
-			position = line.find("=");
-			if (position == line.npos)
-				continue;
-			key = line.substr(0, position);
-			value = line.substr(position + 1, line.length());
-			if (key == "isDebug")
-				isDebug = std::stoi(value);
-			else if (key == "isHighGenus")
-				isHighGenus = std::stoi(value);
-			else if (key == "PointSampling_method")
-				PS_method = value;
-			else if (key == "PointFinding_vertex_priority_metric")
-				PF_vertex_priority_metric = value;
-			else if (key == "BanArea_Method")
-				BanArea_Method = value;
-			else if (key == "BanArea_Dn")
-				BanArea_Dn = std::stoi(value);
-			else if (key == "BanArea_Alpha")
-				BanArea_alpha = std::stod(value);
-			else if (key == "BanArea_Metric")
-				BanArea_Metric = value;
-			else if (key == "BanArea_ShrinkRate")
-				BanArea_ShrinkRate = std::stod(value);
-			else if (key == "Influence_Threshold")
-				Influence_Threshold = std::stoi(value);
-			else if (key == "Distortion_Threshold")
-				Distortion_Threshold = std::stod(value);
-			else if (key == "Trimming_Rate")
-				Trimming_Rate = std::stod(value);
-			else if (key == "Max_AddCount")
-				Max_AddCount = std::stoi(value);
-		}
-
+	this->modelPath = modelPath;
+	this->modelName = modelPath.substr(modelPath.find_last_of('\/') + 1, modelPath.length());//for windows
+	std::ifstream input(optPath);
+	std::string line, key, value;
+	int position;
+	while (std::getline(input, line))
+	{
+		if (line[0] == '#')
+			continue;
+		position = line.find("=");
+		if (position == line.npos)
+			continue;
+		key = line.substr(0, position);
+		value = line.substr(position + 1, line.length());
+		if (key == "isDebug")
+			isDebug = std::stoi(value);
+		else if (key == "isHighGenus")
+			isHighGenus = std::stoi(value);
+		else if (key == "PointSampling_method")
+			PS_method = value;
+		else if (key == "PointFinding_vertex_priority_metric")
+			PF_vertex_priority_metric = value;
+		else if (key == "BanArea_Method")
+			BanArea_Method = value;
+		else if (key == "BanArea_Dn")
+			BanArea_Dn = std::stoi(value);
+		else if (key == "BanArea_Alpha")
+			BanArea_alpha = std::stod(value);
+		else if (key == "BanArea_Metric")
+			BanArea_Metric = value;
+		else if (key == "BanArea_ShrinkRate")
+			BanArea_ShrinkRate = std::stod(value);
+		else if (key == "Influence_Threshold")
+			Influence_Threshold = std::stoi(value);
+		else if (key == "Distortion_Threshold")
+			Distortion_Threshold = std::stod(value);
+		else if (key == "Trimming_Rate")
+			Trimming_Rate = std::stod(value);
+		else if (key == "Max_AddCount")
+			Max_AddCount = std::stoi(value);
+	}
 }
 
 Algorithm::~Algorithm()
@@ -118,7 +117,7 @@ void Algorithm::Dijkstra_group(MeshCache& MC, std::vector<int>& lmk)
 		}
 		if (count < 0)
 			continue;
-		while (count!=0)
+		while (count != 0)
 		{
 			if (que.size() == 0)
 				printf("debug\n");

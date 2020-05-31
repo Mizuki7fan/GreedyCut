@@ -5,12 +5,12 @@
 class MeshCut
 {
 public:
-	MeshCut(Mesh &mesh,MeshCache& MCache);
+	MeshCut(Mesh& mesh, MeshCache& MCache);
 	~MeshCut();
 	void Set(const std::vector<int>& lmk, const std::vector<int>& initseam = std::vector<int>());
 	void Connect();
 	void MakeSeam();
-	Mesh GetCutedMesh() const {return cuted_mesh;	}
+	Mesh GetCutedMesh() const { return cuted_mesh; }
 	std::vector<int>& GetCutvertex() { return cutVertex; }
 	std::vector<int>& GetCutedge() { return cutEdge; }
 	void SetBanCondition(const std::vector<int>& banB, const std::vector<int>& banE, const std::string BanMethod);

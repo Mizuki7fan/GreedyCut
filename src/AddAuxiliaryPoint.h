@@ -5,7 +5,7 @@
 class AAP
 {
 public:
-	AAP(Mesh& mesh,MeshCache& MC,std::vector<int>& landmark);
+	AAP(Mesh& mesh, MeshCache& MC, std::vector<int>& landmark);
 	void Set(double TrimmingRate, int MaxAddCount);
 	void Run();
 	std::vector<int> GetResult() { return landmark; }
