@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 
 	printf("PF2\n");
 	PointFinding PF2(mesh, CutedMesh2, MC);
-	PF2.Set(opt.PS_method);
+	PF2.Set(opt.PF_method);
 	std::vector<std::pair<int, double>> VertexPriority;
 	PF2.FindLocalMaximizer();
 	PF2.Find(VertexPriority);
@@ -117,6 +117,14 @@ int main(int argc, char* argv[])
 	MCut3.MakeSeam();
 	Mesh CutedMesh3 = MCut3.GetCutedMesh();
 	OpenMesh::IO::write_mesh(CutedMesh3, "cuted_mesh.obj");
+
+	std::ofstream cutfile("cut.txt");
+	std::vector<int> cut;
+	cut = MCut3.GetCutedge();
+	for (auto a : cut)
+	{
+		cutfile << a << std::endl;
+	}
 
 	printf("finish!");
 }

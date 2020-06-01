@@ -25,7 +25,6 @@ void PointFinding::Find(std::vector<std::pair<int, double>>& result)
 		FindByRealDis(result);
 	else if (Metric == "Neighbourhood")
 		FindByNeighbourhood(result);
-
 }
 
 void PointFinding::FindLocalMaximizer()

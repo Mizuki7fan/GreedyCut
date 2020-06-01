@@ -7,10 +7,8 @@ struct Option
 {
 	std::string modelName;
 	std::string modelPath;
-	bool isDebug = false;
-	bool isHighGenus = false;
 	std::string PS_method = "Dijkstra";
-	std::string PF_vertex_priority_metric = "Neighbourhood";
+	std::string PF_method = "Dijkstra";
 	std::string BanArea_Method = "NonConnect";
 	int BanArea_Dn = 10;
 	double BanArea_alpha = 0.1;

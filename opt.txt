@@ -1,17 +1,12 @@
 #option
 
-#value: 0/1
-isDebug=0
-#value: 0/1
-isHighGenus=1
-
 #PointSampling
 #value: Dijkstra/GeodesicDistance/RealDistance
 PointSampling_method=Dijkstra
 
-#VertexPriorityMetric
-#value: RealDis/Neighbourhood
-PointFinding_vertex_priority_metric=Neighbourhood
+#PointFinding
+#value: Dijkstra/RealDistance
+PointFinding_method=Dijkstra
 
 #BanAreaMethod
 #value: NonConnect/Connect

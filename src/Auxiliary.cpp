@@ -16,14 +16,10 @@ Option::Option(std::string modelPath, std::string optPath)
 			continue;
 		key = line.substr(0, position);
 		value = line.substr(position + 1, line.length());
-		if (key == "isDebug")
-			isDebug = std::stoi(value);
-		else if (key == "isHighGenus")
-			isHighGenus = std::stoi(value);
-		else if (key == "PointSampling_method")
+		if (key == "PointSampling_method")
 			PS_method = value;
-		else if (key == "PointFinding_vertex_priority_metric")
-			PF_vertex_priority_metric = value;
+		else if (key == "PointFinding_method")
+			PF_method = value;
 		else if (key == "BanArea_Method")
 			BanArea_Method = value;
 		else if (key == "BanArea_Dn")

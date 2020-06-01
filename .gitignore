@@ -1,10 +1,3 @@
 #屏蔽目录和文件
-/build_gcc/*
-/build_vs/*
-/build_mkl/*
-/test/*
-/Output/*
-/Input/*
-/paper/*
-/Benchmark/*
+/build*/*
 /.*
