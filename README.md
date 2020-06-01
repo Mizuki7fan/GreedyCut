@@ -9,7 +9,6 @@ Computer Graphics Forum (Eurographics), 2020.
 The code is written by Tianyu Zhu using Microsoft Visual Studio 2019 with OpenMP, and has passed the test on Windows 10, Ubuntu 18.04 and macOS 10.14.3.
 
 ## External Libraries
----
 All the required libraries are the latest versions.
 
 * [Eigen](http://eigen.tuxfamily.org/)
@@ -18,13 +17,11 @@ All the required libraries are the latest versions.
 * OpenMP
 
 ## Clone Repository
----
 ```
 git clone https://github.com/Mizuki7fan/GreedyCut
 ```
 
 ## Build and Run
----
 ### build
 ```
 cd GreedyCut
@@ -37,7 +34,6 @@ cmake ..
 ```
 
 ### run
----
 ```
 GreedyCut.exe <mesh> opt.txt
 ```
