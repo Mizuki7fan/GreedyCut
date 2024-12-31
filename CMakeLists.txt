@@ -1,11 +1,23 @@
 cmake_minimum_required(VERSION 3.7)
 project(GreedyCut)
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    message(STATUS "the compiler is gcc")
-    SET(CMAKE_CXX_FLAGS "-O2")
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    message(STATUS "the compiler is MSVC")
-    add_definitions(/D_USE_MATH_DEFINES)
+
+#设置不生成MinSizeRel;RelWithDebInfo
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
+
+add_definitions(/D_USE_MATH_DEFINES)
+SET(CMAKE_CXX_STANDARD 20)
+SET(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# 设置生成exe的存放位置
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/bin/Debug")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/bin/Release")
+
+# 读取设置系统环境变量
+set (MyLib $ENV{MyLibPath})
+if(NOT MyLib)
+    message(FATAL_ERROR "没有在环境变量中设置本地库目录MyLibPath的值.")
+else()
+    message("本地库目录为: ${MyLib}")
 endif()
 
 find_package(OpenMP REQUIRED)
@@ -16,66 +28,83 @@ if(OPENMP_FOUND)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-option(USE_PARDISO "Use Pardiso" ON)
-option(USE_MKL_PARDISO "Use MKL Pardiso" OFF)
-option(USE_EIGEN "Use Eigen" OFF)
+SET(EIGEN_PATH "${MyLib}\\Eigen")
+SET(OPENMESH_PATH "${MyLib}\\OpenMesh\\src")
+SET(OPENMESH_LIB_PATH "${MyLib}\\OpenMesh\\build\\Build\\lib")
+SET(MKL_PATH "C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\2025.0\\include")
+SET(MKL_LIB_PATH "C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\2025.0\\lib")
+
+option(USE_MKL "Use MKL Pardiso" OFF)
+option(USE_EIGEN "Use Eigen" ON)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     message(STATUS "the OS is windows")
-    include_directories("D:/LIBRARY/Eigen")
-    include_directories("D:/LIBRARY/OpenMesh/src")
+    include_directories(SYSTEM ${EIGEN_PATH})
+    include_directories(SYSTEM ${OPENMESH_PATH})
+    link_directories(${OPENMESH_LIB_PATH})
 
-    if (USE_MKL_PARDISO)
+    if (USE_MKL)
         message(STATUS "Using MKL Pardiso")
         add_definitions(-DUSE_MKL_PARDISO)
-        include_directories("D:/LIBRARY/mkl/compilers_and_libraries_2019.4.245/windows/mkl/include")
-        link_directories("D:/LIBRARY/mkl/compilers_and_libraries_2019.4.245/windows/mkl/lib/intel64")
+        include_directories(SYSTEM ${MKL_PATH})
+        link_directories(${MKL_LIB_PATH})
         SET(SOLVER_LIBRARY mkl_rt)
-        SET(SOLVER MKLPardisoSolver.cpp)
-    elseif(USE_PARDISO)
-        message(STATUS "Using Pardiso")
-        add_definitions(-DUSE_PARDISO)
-        link_directories("D:/LIBRARY/Pardiso")
-        SET(SOLVER_LIBRARY libpardiso600-WIN-X86-64.lib)
-        SET(SOLVER PardisoSolver.cpp)
+        SET(SOLVER_ MKLPardisoSolver)
     elseif(USE_EIGEN)
         message(STATUS "Using Eigen")
         add_definitions(-DUSE_EIGEN)
-        SET(SOLVER EigenLinSolver.cpp)
+        SET(SOLVER_ EigenLinSolver)
     endif()
-
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        link_directories("D:/LIBRARY/OpenMesh/build_cmake/Build/lib")
-    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-        link_directories("D:/LIBRARY/OpenMesh/build_vs/Build/lib")
-    endif()
-
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
     message(STATUS "the OS is Linux")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
     message(STATUS "the OS is Darwin")
-    
 endif()
 
-file (GLOB SRCFILES
+file (GLOB MAIN_FILE
     src/main.cpp
     src/Auxiliary.cpp
+    src/Auxiliary.h
     src/PointSampling.cpp
+    src/PointSampling.h
     src/MeshCache.cpp
+    src/MeshCache.h
     src/MeshCut.cpp
+    src/MeshCut.h
     src/KPNewton.cpp
-    src/Solver/${SOLVER}
+    src/KPNewton.h
     src/PointFinding.cpp
+    src/PointFinding.h
     src/GAP.cpp
+    src/GAP.h
     src/AddAuxiliaryPoint.cpp
+    src/AddAuxiliaryPoint.h
 )
 
-add_executable(${PROJECT_NAME} ${SRCFILES})
+file (GLOB SOLVER_FILE
+    src/Solver/${SOLVER_}.cpp
+    src/Solver/${SOLVER_}.h
+    src/Solver/Solver.h
+)
+
+add_executable(${PROJECT_NAME} 
+    ${MAIN_FILE}
+    ${SOLVER_FILE}
+)
+
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    target_link_libraries(${PROJECT_NAME} debug OpenMeshToolsd debug OpenMeshCored)
-    target_link_libraries(${PROJECT_NAME} optimized OpenMeshTools optimized OpenMeshCore)
+    target_link_libraries(${PROJECT_NAME} 
+    debug OpenMeshToolsd
+    debug OpenMeshCored
+    optimized OpenMeshTools
+    optimized OpenMeshCore)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_link_libraries(${PROJECT_NAME}  OpenMeshTools OpenMeshCore)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${SOLVER_LIBRARY})
+
+# 设置编译器标志, 这句话要在target_link_libraries后面
+# if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+#     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)# /W4 较高的警告等级; /WX 所有警告都被视为错误 /wd4820 屏蔽C4820警告。
+# endif()

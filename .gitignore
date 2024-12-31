@@ -1,3 +1,4 @@
 #屏蔽目录和文件
-/build*/*
-/.*
+/build
+/bin
+.cache
