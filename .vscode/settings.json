@@ -1,0 +1,17 @@
+{
+    "cmake.debugConfig": {
+        "args": [
+            "20241227",
+            "069"
+        ]
+    },
+    "clang-format.executable": "C:\\Program Files\\LLVM\\bin\\clang-format.exe",
+    "clangd.path": "C:\\Program Files\\LLVM\\bin\\clangd.exe",
+    "cmake.outputLogEncoding": "utf-8",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "files.associations": {
+        "xstring": "cpp",
+        "vector": "cpp"
+    }, //vscode内置output窗口不输出汉字乱码
+//    "workbench.colorTheme": "Abyss",
+}
