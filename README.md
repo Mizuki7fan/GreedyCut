@@ -56,6 +56,6 @@ GreedyCut.exe alien.obj opt.txt
 ```
 
 ## Output Files
-* landmark.txt: the landmark find by algorithm.
-* cut.txt: the cut find by algorithm
+* landmark.findvef: the landmark find by algorithm.
+* cut.findvef: the cut find by algorithm
 * cuted_mesh.obj: the open mesh cuted by the cut.

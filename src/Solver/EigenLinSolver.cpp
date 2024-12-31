@@ -1,4 +1,6 @@
 #include "EigenLinSolver.h"
+#include <atomic>
+#include <cstddef>
 
 EigenLinSolver::EigenLinSolver() {}
 
@@ -17,22 +19,21 @@ void EigenLinSolver::pardiso_solver() {
 
   Eigen::VectorXd res_ = simplicialLDLT.solve(b);
   result.resize(num);
-  for (std::size_t i = 0; i < rhs.size(); i++) {
-    result[i] = res_[i];
-  }
+  for (std::size_t ii = 0; ii < rhs.size(); ii++)
+    result[ii] = res_[ii];
 }
 
 void EigenLinSolver::free_numerical_factorization_memory() {}
 
 void EigenLinSolver::update_coef() {
   typedef Eigen::Triplet<double> T;
-  vector<T> tripletvec;
-  for (std::size_t i = 0; i < num; i++) {
-    int j = ia[i];
-    tripletvec.emplace_back(i, i, a[j]);
-    for (j = ia[i] + 1; j < ia[i + 1]; j++) {
-      tripletvec.emplace_back(i, ja[j], a[j]);
-      tripletvec.emplace_back(ja[j], i, a[j]);
+  std::vector<T> tripletvec;
+  for (int ii = 0; ii < num; ii++) {
+    std::size_t j = ia[ii];
+    tripletvec.emplace_back(ii, ii, a[j]);
+    for (j = ia[ii] + 1; j < ia[ii + 1]; j++) {
+      tripletvec.emplace_back(ii, static_cast<int>(ja[j]), a[j]);
+      tripletvec.emplace_back(static_cast<int>(ja[j]), ii, a[j]);
     }
   }
   coefMtr.resize(num, num);

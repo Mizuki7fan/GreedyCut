@@ -9,6 +9,8 @@
 #include "Solver/Solver.h"
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <atomic>
+#include <cstddef>
 
 class GAP {
 public:
@@ -25,7 +27,7 @@ public:
 
   // BPE
   void run_bpe();
-  bool add1p(bool startfromtutte = false, int parr_count = 6);
+  bool add1p(int parr_count = 6);
   void init();
   void BPE();
 
@@ -54,20 +56,21 @@ public:
   void recover_to_src();
 
   // ADD1P
-  void rePre_calculate(int i);
-  void BPE(int i);
-  void Energysource(int i);
-  void Update_source_same_t(int N);
-  void SLIM(int N);
+  void rePre_calculate(const std::size_t &thread_idx);
+  void BPE(const std::size_t &thread_idx);
+  void Energysource(const std::size_t &thread_idx);
+  void Update_source_same_t(const std::size_t &thread_idx);
+  void SLIM(const std::size_t &thread_idx);
   void max_step(const Eigen::VectorXd &xx, const Eigen::VectorXd &dd,
-                double &step, int i);
+                double &step, const std::size_t &thread_idx);
   void backtracking_line_search(const Eigen::VectorXd &x,
                                 const Eigen::VectorXd &d,
                                 const Eigen::VectorXd &negetive_grad,
-                                double &alpha, int i);
-  void Energy(const Eigen::VectorXd &position, double &energyupdate, int N);
-  void CM(int i);
-  void recover_to_src(int N);
+                                double &alpha, const std::size_t &thread_idx);
+  void Energy(const Eigen::VectorXd &position, double &energyupdate,
+              const std::size_t &thread_idx);
+  void CM(const std::size_t &thread_idx);
+  void recover_to_src(const std::size_t &thread_idx);
 
 private:
   // BASIC
@@ -77,19 +80,19 @@ private:
 
   std::vector<int> LmkFix, LmkCanditate, LmkResult;
   std::vector<int> v_seam, e_seam;
-  std::vector<int> he2idx, idx2meshvid;
+  std::vector<std::size_t> he2idx, idx2meshvid;
   double originmesh_area_sqrt;
   double time_consumption;
 
-  int F_N, V_N;
+  std::size_t F_N, V_N;
   double g_norm;
   std::vector<double> area, area_uniform, area_src;
-  std::vector<int> F0, F1, F2;
-  std::vector<std::vector<int>> VV_ids;
+  std::vector<std::size_t> F0, F1, F2;
+  std::vector<std::vector<std::size_t>> VV_ids;
   Eigen::VectorXd position_of_mesh;
   Eigen::VectorXd negative_grad_norm;
   Solver *solver;
-  std::vector<int> solver_i, solver_ia, solver_ja;
+  std::vector<std::size_t> solver_i, solver_ia, solver_ja;
   std::vector<double> solver_a, solver_b;
 
   double Intp_T_Min;
@@ -107,63 +110,63 @@ private:
   std::vector<double> source_p00, source_p01, source_p10, source_p11;
   std::vector<double> update_p00, update_p01, update_p10, update_p11;
 
-  std::vector<int> id_h00;
-  std::vector<int> id_h01;
-  std::vector<int> id_h02;
-  std::vector<int> id_h03;
-  std::vector<int> id_h04;
-  std::vector<int> id_h05;
-  std::vector<int> id_h11;
-  std::vector<int> id_h12;
-  std::vector<int> id_h13;
-  std::vector<int> id_h14;
-  std::vector<int> id_h15;
-  std::vector<int> id_h22;
-  std::vector<int> id_h23;
-  std::vector<int> id_h24;
-  std::vector<int> id_h25;
-  std::vector<int> id_h33;
-  std::vector<int> id_h34;
-  std::vector<int> id_h35;
-  std::vector<int> id_h44;
-  std::vector<int> id_h45;
-  std::vector<int> id_h55;
+  std::vector<std::size_t> id_h00;
+  std::vector<std::size_t> id_h01;
+  std::vector<std::size_t> id_h02;
+  std::vector<std::size_t> id_h03;
+  std::vector<std::size_t> id_h04;
+  std::vector<std::size_t> id_h05;
+  std::vector<std::size_t> id_h11;
+  std::vector<std::size_t> id_h12;
+  std::vector<std::size_t> id_h13;
+  std::vector<std::size_t> id_h14;
+  std::vector<std::size_t> id_h15;
+  std::vector<std::size_t> id_h22;
+  std::vector<std::size_t> id_h23;
+  std::vector<std::size_t> id_h24;
+  std::vector<std::size_t> id_h25;
+  std::vector<std::size_t> id_h33;
+  std::vector<std::size_t> id_h34;
+  std::vector<std::size_t> id_h35;
+  std::vector<std::size_t> id_h44;
+  std::vector<std::size_t> id_h45;
+  std::vector<std::size_t> id_h55;
 
   // ADD1P
   std::vector<std::vector<int>> p_v_seam;
   std::vector<std::vector<int>> p_e_seam;
-  std::vector<std::vector<int>> p_idx2meshvid;
-  std::vector<std::vector<int>> p_he2idx;
-  std::vector<std::vector<int>> p_F0;
-  std::vector<std::vector<int>> p_F1;
-  std::vector<std::vector<int>> p_F2;
-  std::vector<std::vector<std::vector<int>>> p_VV_ids;
+  std::vector<std::vector<std::size_t>> p_idx2meshvid;
+  std::vector<std::vector<std::size_t>> p_he2idx;
+  std::vector<std::vector<std::size_t>> p_F0;
+  std::vector<std::vector<std::size_t>> p_F1;
+  std::vector<std::vector<std::size_t>> p_F2;
+  std::vector<std::vector<std::vector<std::size_t>>> p_VV_ids;
   std::vector<Eigen::VectorXd> p_position_of_mesh;
-  std::vector<int> p_V_N;
-  std::vector<int> p_F_N;
-  std::vector<std::vector<int>> p_solver_i, p_solver_ia, p_solver_ja;
+  std::vector<std::size_t> p_V_N;
+  std::vector<std::size_t> p_F_N;
+  std::vector<std::vector<std::size_t>> p_solver_i, p_solver_ia, p_solver_ja;
   std::vector<std::vector<double>> p_solver_a, p_solver_b;
-  std::vector<std::vector<int>> p_id_h00;
-  std::vector<std::vector<int>> p_id_h01;
-  std::vector<std::vector<int>> p_id_h02;
-  std::vector<std::vector<int>> p_id_h03;
-  std::vector<std::vector<int>> p_id_h04;
-  std::vector<std::vector<int>> p_id_h05;
-  std::vector<std::vector<int>> p_id_h11;
-  std::vector<std::vector<int>> p_id_h12;
-  std::vector<std::vector<int>> p_id_h13;
-  std::vector<std::vector<int>> p_id_h14;
-  std::vector<std::vector<int>> p_id_h15;
-  std::vector<std::vector<int>> p_id_h22;
-  std::vector<std::vector<int>> p_id_h23;
-  std::vector<std::vector<int>> p_id_h24;
-  std::vector<std::vector<int>> p_id_h25;
-  std::vector<std::vector<int>> p_id_h33;
-  std::vector<std::vector<int>> p_id_h34;
-  std::vector<std::vector<int>> p_id_h35;
-  std::vector<std::vector<int>> p_id_h44;
-  std::vector<std::vector<int>> p_id_h45;
-  std::vector<std::vector<int>> p_id_h55;
+  std::vector<std::vector<std::size_t>> p_id_h00;
+  std::vector<std::vector<std::size_t>> p_id_h01;
+  std::vector<std::vector<std::size_t>> p_id_h02;
+  std::vector<std::vector<std::size_t>> p_id_h03;
+  std::vector<std::vector<std::size_t>> p_id_h04;
+  std::vector<std::vector<std::size_t>> p_id_h05;
+  std::vector<std::vector<std::size_t>> p_id_h11;
+  std::vector<std::vector<std::size_t>> p_id_h12;
+  std::vector<std::vector<std::size_t>> p_id_h13;
+  std::vector<std::vector<std::size_t>> p_id_h14;
+  std::vector<std::vector<std::size_t>> p_id_h15;
+  std::vector<std::vector<std::size_t>> p_id_h22;
+  std::vector<std::vector<std::size_t>> p_id_h23;
+  std::vector<std::vector<std::size_t>> p_id_h24;
+  std::vector<std::vector<std::size_t>> p_id_h25;
+  std::vector<std::vector<std::size_t>> p_id_h33;
+  std::vector<std::vector<std::size_t>> p_id_h34;
+  std::vector<std::vector<std::size_t>> p_id_h35;
+  std::vector<std::vector<std::size_t>> p_id_h44;
+  std::vector<std::vector<std::size_t>> p_id_h45;
+  std::vector<std::vector<std::size_t>> p_id_h55;
 
   std::vector<std::vector<double>> p_source_p00, p_source_p01, p_source_p10,
       p_source_p11;

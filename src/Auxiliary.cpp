@@ -1,4 +1,8 @@
 #include "Auxiliary.h"
+#include <atomic>
+#include <cstddef>
+#include <iterator>
+#include <limits>
 
 Option::Option(std::string modelPath, std::string optPath) {
   this->modelPath = modelPath;
@@ -6,7 +10,7 @@ Option::Option(std::string modelPath, std::string optPath) {
                                      modelPath.length()); // for windows
   std::ifstream input(optPath);
   std::string line, key, value;
-  int position;
+  std::size_t position;
   while (std::getline(input, line)) {
     if (line[0] == '#')
       continue;
@@ -80,7 +84,7 @@ void Algorithm::Dijkstra_group(MeshCache &MC, std::vector<int> &lmk) {
     std::vector<int> is_lmk(MC.NVertices, 0);
     for (int j = i; j < lmk.size(); j++)
       is_lmk[lmk[j]] = 1;
-    int count = lmk.size() - i;
+    int count = static_cast<int>(lmk.size() - i);
     int s_p = lmk[i];
     std::vector<int> &is_visited = MC.DijkstraIsVisited[s_p];
     std::vector<double> &distance = MC.Vd[s_p];
@@ -94,8 +98,8 @@ void Algorithm::Dijkstra_group(MeshCache &MC, std::vector<int> &lmk) {
       v_p.resize(MC.NVertices, -1);
       v_p[s_p] = s_p;
     }
-    for (int i = 0; i < lmk.size(); i++) {
-      if (is_visited[lmk[i]] != 0)
+    for (std::size_t k = 0; k < lmk.size(); k++) {
+      if (is_visited[lmk[k]] != 0)
         count--;
     }
     if (count < 0)
@@ -131,7 +135,7 @@ void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk,
                         std::vector<int> &cutvertex,
                         std::vector<int> &cutedge) {
   std::sort(lmk.begin(), lmk.end());
-  int nv = lmk.size();
+  std::size_t nv = lmk.size();
   std::vector<int> spanning_tree_current(nv);
   std::priority_queue<PathInfo> EdgeInfo;
   for (int i = 0; i < lmk.size(); i++)
@@ -144,7 +148,6 @@ void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk,
     spanning_tree_current[i] = i;
   }
   int index = 0;
-  int j = 0;
   while (index < nv - 1) {
     PathInfo tmp = EdgeInfo.top();
     EdgeInfo.pop();
@@ -187,21 +190,19 @@ void Algorithm::Kruskal(MeshCache &MCache, std::vector<int> &lmk,
 void Algorithm::Kruskal(std::vector<int> &lmk,
                         std::priority_queue<PathInfo> que,
                         std::vector<PathInfo> &Res) {
-  int nv = lmk.size();
-  std::vector<int> spanning_tree_current(nv);
-  std::set<int> reV, reE;
+  std::size_t nv = lmk.size();
+  std::vector<std::size_t> spanning_tree_current(nv);
 
   std::vector<int> edge;
   std::set<int> vertex;
-  for (int i = 0; i < nv; ++i) {
+  for (std::size_t i = 0; i < nv; ++i)
     spanning_tree_current[i] = i;
-  }
-  int index = 0;
-  int j = 0;
+  std::size_t index = 0;
   while (index < nv - 1) {
     PathInfo tmp = que.top();
     que.pop();
-    int m_id = -1, n_id = -1;
+    std::size_t m_id = std::numeric_limits<std::size_t>::max(),
+                n_id = std::numeric_limits<std::size_t>::max();
     for (int u = 0; u < nv; u++) {
       if (lmk[u] == tmp.s_p)
         m_id = u;
@@ -262,7 +263,6 @@ void Algorithm::Dijkstra_with_restrict(MeshCache &MCache, int s_p,
                                        std::vector<double> &weight,
                                        std::vector<int> &v_p,
                                        std::vector<double> &d) {
-  double total_length = MCache.AVG_EL * MCache.NEdges;
   std::vector<int> is_visited(MCache.NVertices, 0);
   d[s_p] = 0;
   is_visited[s_p] = 0;

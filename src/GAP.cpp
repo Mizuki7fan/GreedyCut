@@ -1,5 +1,7 @@
 #include "GAP.h"
 #include "MeshCut.h"
+#include <atomic>
+#include <cstddef>
 #ifdef USE_PARDISO
 #include "Solver/PardisoSolver.h"
 #elif defined(USE_MKL_PARDISO)
@@ -7,6 +9,7 @@
 #elif defined(USE_EIGEN)
 #include "Solver/EigenLinSolver.h"
 #endif
+#include <omp.h>
 
 GAP::GAP(Mesh &mesh, MeshCache &MC, std::vector<std::pair<int, double>> &lmk)
     : ClosedMesh(mesh), MC(MC), landmark(lmk) {}
@@ -95,11 +98,11 @@ void GAP::run_bpe() {
   energy_prev_seam = energy_area;
 }
 
-bool GAP::add1p(bool startfromtutte, int parr_count) {
+bool GAP::add1p(int parr_count) {
   if (LmkCanditate.size() == 0)
     return false;
   parr_count = omp_get_num_procs();
-  int step;
+  std::size_t step;
   if (parr_count > LmkCanditate.size()) {
     step = LmkCanditate.size();
   } else {
@@ -221,7 +224,7 @@ bool GAP::add1p(bool startfromtutte, int parr_count) {
 
   std::vector<double> des_value(step, -1);
 
-#pragma omp parallel for num_threads(step)
+#pragma omp parallel for num_threads(static_cast<int>(step))
   for (int ii = 0; ii < step; ii++) {
     if (p_v_seam[ii][LmkCanditate[ii]] == 1) {
       des_value[ii] = 0;
@@ -232,16 +235,16 @@ bool GAP::add1p(bool startfromtutte, int parr_count) {
 
     Algorithm::Dijkstra_with_nearest2(MC, LmkCanditate[ii], p_v_seam[ii],
                                       p_path_1p2seam_v[ii]);
-    int tmp_V_N = p_V_N[ii] + p_path_1p2seam_v[ii].size() - 1;
+    std::size_t tmp_V_N = p_V_N[ii] + p_path_1p2seam_v[ii].size() - 1;
     Eigen::VectorXd pos_bk_tmp;
     pos_bk_tmp.resize(2 * tmp_V_N);
     pos_bk_tmp.block(0, 0, p_V_N[ii], 1) =
         p_position_of_mesh[ii].topRows(p_V_N[ii]);
     pos_bk_tmp.block(tmp_V_N, 0, p_V_N[ii], 1) =
         p_position_of_mesh[ii].bottomRows(p_V_N[ii]);
-    position_of_mesh;
+
     p_idx2meshvid[ii].resize(tmp_V_N);
-    int v_n_tmp = p_V_N[ii];
+    std::size_t v_n_tmp = p_V_N[ii];
     OpenMesh::HalfedgeHandle h_iter;
     for (const auto &heh : ClosedMesh.voh_range(
              ClosedMesh.vertex_handle(p_path_1p2seam_v[ii].back()))) {
@@ -251,7 +254,7 @@ bool GAP::add1p(bool startfromtutte, int parr_count) {
         break;
       }
     }
-    int i_ = p_path_1p2seam_v[ii].size() - 2;
+    std::size_t i_ = p_path_1p2seam_v[ii].size() - 2;
     int to_vid;
 
     do {
@@ -324,14 +327,13 @@ bool GAP::add1p(bool startfromtutte, int parr_count) {
           break;
         }
       }
-      auto h_iter = h_begin;
-      std::vector<int> boundary_vs;
+      h_iter = h_begin;
+      std::vector<std::size_t> boundary_vs;
       std::vector<int> hiter_id;
       do {
         hiter_id.push_back(h_iter.idx());
         boundary_vs.push_back(p_he2idx[ii][h_iter.idx()]);
         h_iter = ClosedMesh.next_halfedge_handle(h_iter);
-        int tmp = ClosedMesh.edge_handle(h_iter).idx();
         while (!e_seam_tmp[ClosedMesh.edge_handle(h_iter).idx()]) {
           h_iter = ClosedMesh.opposite_halfedge_handle(h_iter);
           h_iter = ClosedMesh.next_halfedge_handle(h_iter);
@@ -460,8 +462,8 @@ void GAP::BPE() {
   solver->ia = solver_ia;
   solver->ja = solver_ja;
   solver->a.resize(solver_ja.size());
-  solver->nnz = solver_ja.size();
-  solver->num = 2 * V_N;
+  solver->nnz = static_cast<int>(solver_ja.size());
+  solver->num = static_cast<int>(2 * V_N);
 
   solver->pardiso_init();
 
@@ -589,11 +591,11 @@ void GAP::Pre_calculate() {
 
   typedef Eigen::Triplet<int> T;
   std::vector<T> tripletlist;
-  for (int i = 0; i < 2 * V_N; i++) {
+  for (std::size_t i = 0; i < 2 * V_N; i++) {
     solver_ia.push_back(solver_ja.size());
     if (i < V_N) {
-      auto vertex = mEsh.vertex_handle(i);
-      std::vector<int> row_id;
+      auto vertex = mEsh.vertex_handle(static_cast<unsigned int>(i));
+      std::vector<std::size_t> row_id;
 
       row_id.push_back(i);
       row_id.push_back(i + V_N);
@@ -603,46 +605,50 @@ void GAP::Pre_calculate() {
         row_id.push_back(id_neighbor);
         row_id.push_back(id_neighbor + V_N);
       }
-      std::sort(row_id.begin(), row_id.end(), std::less<int>());
-      std::vector<int>::iterator iter =
+      std::sort(row_id.begin(), row_id.end(), std::less<std::size_t>());
+      std::vector<std::size_t>::iterator iter =
           std::find(row_id.begin(), row_id.end(), i);
 
-      int dd = 0;
+      std::size_t dd = 0;
 
-      for (int k = std::distance(row_id.begin(), iter); k < row_id.size();
-           k++) {
+      for (std::size_t k = std::distance(row_id.begin(), iter);
+           k < row_id.size(); k++) {
         solver_ja.push_back(row_id[k]);
         solver_i.push_back(i);
-        tripletlist.push_back(T(i, row_id[k], dd));
+        tripletlist.push_back(T(static_cast<int>(i),
+                                static_cast<int>(row_id[k]),
+                                static_cast<int>(dd)));
         ++dd;
       }
     } else {
-      auto vertex = mEsh.vertex_handle(i - V_N);
+      auto vertex = mEsh.vertex_handle(static_cast<unsigned int>(i - V_N));
 
-      std::vector<int> row_id;
+      std::vector<std::size_t> row_id;
 
       row_id.push_back(i);
 
       for (auto it = mEsh.vv_begin(vertex); it != mEsh.vv_end(vertex); ++it) {
-        int id_neighbor = it->idx() + V_N;
+        std::size_t id_neighbor = it->idx() + V_N;
         row_id.push_back(id_neighbor);
       }
-      std::sort(row_id.begin(), row_id.end(), std::less<int>());
-      std::vector<int>::iterator iter =
+      std::sort(row_id.begin(), row_id.end(), std::less<std::size_t>());
+      std::vector<std::size_t>::iterator iter =
           std::find(row_id.begin(), row_id.end(), i);
 
-      int dd = 0;
+      std::size_t dd = 0;
 
-      for (int k = std::distance(row_id.begin(), iter); k < row_id.size();
-           k++) {
+      for (std::size_t k = std::distance(row_id.begin(), iter);
+           k < row_id.size(); k++) {
         solver_ja.push_back(row_id[k]);
         solver_i.push_back(i);
-        tripletlist.push_back(T(i, row_id[k], dd));
+        tripletlist.push_back(T(static_cast<int>(i),
+                                static_cast<int>(row_id[k]),
+                                static_cast<int>(dd)));
         ++dd;
       }
     }
   }
-  Eigen::SparseMatrix<int> find_id_in_rows;
+  Eigen::SparseMatrix<std::size_t> find_id_in_rows;
   find_id_in_rows.resize(2 * V_N, 2 * V_N);
   find_id_in_rows.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
@@ -670,20 +676,20 @@ void GAP::Pre_calculate() {
   id_h45.resize(F_N);
   id_h55.resize(F_N);
 
-  for (int i = 0; i < F_N; i++) {
-    int f0 = F0[i];
-    int f1 = F1[i];
-    int f2 = F2[i];
-    int f3 = F0[i] + V_N;
-    int f4 = F1[i] + V_N;
-    int f5 = F2[i] + V_N;
+  for (std::size_t i = 0; i < F_N; i++) {
+    std::size_t f0 = F0[i];
+    std::size_t f1 = F1[i];
+    std::size_t f2 = F2[i];
+    std::size_t f3 = F0[i] + V_N;
+    std::size_t f4 = F1[i] + V_N;
+    std::size_t f5 = F2[i] + V_N;
 
-    int min01 = std::min(f0, f1);
-    int max01 = f0 + f1 - min01;
-    int min02 = std::min(f0, f2);
-    int max02 = f0 + f2 - min02;
-    int min12 = std::min(f1, f2);
-    int max12 = f1 + f2 - min12;
+    std::size_t min01 = std::min(f0, f1);
+    std::size_t max01 = f0 + f1 - min01;
+    std::size_t min02 = std::min(f0, f2);
+    std::size_t max02 = f0 + f2 - min02;
+    std::size_t min12 = std::min(f1, f2);
+    std::size_t max12 = f1 + f2 - min12;
 
     id_h00[i] = solver_ia[f0];
     id_h01[i] = solver_ia[min01] + find_id_in_rows.coeff(min01, max01);
@@ -739,8 +745,8 @@ void GAP::TutteOp() {
     he_start = mEsh.next_halfedge_handle(he_start);
   }
 
-  std::vector<int> pardiso_it;
-  std::vector<int> pardiso_jt;
+  std::vector<std::size_t> pardiso_it;
+  std::vector<std::size_t> pardiso_jt;
   std::vector<double> pardiso_t;
   std::vector<double> pardiso_tu;
   std::vector<double> pardiso_tv;
@@ -750,10 +756,10 @@ void GAP::TutteOp() {
   pardiso_t.reserve(6 * V_N);
   pardiso_tu.resize(V_N, 0.0);
   pardiso_tv.resize(V_N, 0.0);
-  for (size_t i = 0; i < V_N; i++) {
+  for (std::size_t i = 0; i < V_N; i++) {
     pardiso_it.push_back(pardiso_jt.size());
 
-    auto v_h = mEsh.vertex_handle(i);
+    auto v_h = mEsh.vertex_handle(static_cast<unsigned int>(i));
     if (mEsh.is_boundary(v_h)) {
       pardiso_jt.push_back(i);
       pardiso_t.push_back(1);
@@ -779,7 +785,7 @@ void GAP::TutteOp() {
           }
         }
       }
-      sort(row_id.begin(), row_id.end(), std::less<int>());
+      sort(row_id.begin(), row_id.end(), std::less<std::size_t>());
       for (size_t j = 0; j < row_id.size(); j++) {
         pardiso_jt.push_back(row_id[j]);
         pardiso_t.push_back(-1);
@@ -846,7 +852,7 @@ void GAP::init_area() {
 void GAP::Energysource() {
   double end_e_one_temp = 0, end_e_area = 0;
 
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det, E_1, E_2;
 
@@ -855,7 +861,7 @@ void GAP::Energysource() {
   double q00, q01, q10, q11;
 
   const double *pos = position_of_mesh.data();
-  for (int i = 0; i < F_N; ++i) {
+  for (std::size_t i = 0; i < F_N; ++i) {
     f0 = F0[i];
     f1 = F1[i];
     f2 = F2[i];
@@ -885,8 +891,8 @@ void GAP::Energysource() {
     j11 = p01 * q10 + p11 * q11;
 
     det = j00 * j11 - j01 * j10;
-    if (det <= 0)
-      printf("%s%d", "det", det);
+    // if (det <= 0)
+    //   printf("%s%d", "det", det);
     E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
     E_2 = 1.0 / (det * det) * E_1;
 
@@ -917,7 +923,7 @@ void GAP::Update_source_same_t() {
   std::vector<double> all_w11;
   all_w11.resize(F_N);
 
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det;
   double E_d;
@@ -1027,7 +1033,7 @@ void GAP::Update_source_same_t() {
 
 void GAP::SLIM() {
   double area_now;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double j00, j01, j10, j11;
   double p00, p01, p10, p11;
   double q00, q01, q10, q11;
@@ -1053,7 +1059,7 @@ void GAP::SLIM() {
       h25, h33, h34, h35, h44, h45, h55;
   double *position = position_of_mesh.data();
 
-  int nnz = solver_ja.size();
+  std::size_t nnz = solver_ja.size();
   solver_a.clear();
   solver_b.clear();
   solver_a.resize(nnz, 0.0);
@@ -1221,8 +1227,8 @@ void GAP::SLIM() {
 void GAP::max_step(const Eigen::VectorXd &xx, const Eigen::VectorXd &dd,
                    double &step) {
   double temp_t = std::numeric_limits<double>::infinity();
-  int f0, f1, f2;
-  double a, b, c, b1, b2, tt, tt1, tt2;
+  std::size_t f0, f1, f2;
+  double a, b, c, b1, b2, tt;
   double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
   const double *x = xx.data();
   const double *d = dd.data();
@@ -1323,7 +1329,7 @@ void GAP::backtracking_line_search(const Eigen::VectorXd &x,
 
 void GAP::Energy(const Eigen::VectorXd &position, double &energyupdate) {
   double energy = 0;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det, E_d;
   double j00, j01, j10, j11;
@@ -1370,15 +1376,17 @@ void GAP::Energy(const Eigen::VectorXd &position, double &energyupdate) {
 
 void GAP::local_coordinate_inverse(int i, double &p00, double &p01, double &p10,
                                    double &p11) {
-  int f0 = F0[i];
-  int f1 = F1[i];
-  int f2 = F2[i];
+  std::size_t f0 = F0[i];
+  std::size_t f1 = F1[i];
+  std::size_t f2 = F2[i];
 
   OpenMesh::Vec3d x_ =
-      (mEsh.point(mEsh.vertex_handle(f1)) - mEsh.point(mEsh.vertex_handle(f0)));
+      (mEsh.point(mEsh.vertex_handle(static_cast<unsigned int>(f1))) -
+       mEsh.point(mEsh.vertex_handle(static_cast<unsigned int>(f0))));
   double x1_0 = x_.length();
   OpenMesh::Vec3d l_ =
-      mEsh.point(mEsh.vertex_handle(f2)) - mEsh.point(mEsh.vertex_handle(f0));
+      mEsh.point(mEsh.vertex_handle(static_cast<unsigned int>(f2))) -
+      mEsh.point(mEsh.vertex_handle(static_cast<unsigned int>(f0)));
   OpenMesh::Vec3d y_ = mEsh.normal(mEsh.face_handle(i)) % (1 / x1_0 * x_);
   double x2_0 = 1 / x1_0 * l_ | x_;
   double y2_0 = l_ | y_;
@@ -1408,7 +1416,7 @@ double GAP::newton_equation(const double &a, const double &b, const double &K) {
 
 void GAP::CM() {
   double area_now;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double j00, j01, j10, j11;
   double p00, p01, p10, p11;
   double q00, q01, q10, q11;
@@ -1433,13 +1441,13 @@ void GAP::CM() {
   double h00, h01, h02, h03, h04, h05, h11, h12, h13, h14, h15, h22, h23, h24,
       h25, h33, h34, h35, h44, h45, h55;
   double *position = position_of_mesh.data();
-  int nnz = solver_ja.size();
+  std::size_t nnz = solver_ja.size();
   solver_a.clear();
   solver_b.clear();
   solver_a.resize(nnz, 0.0);
   solver_b.resize(2 * V_N, 0.0);
 
-  for (int i = 0; i < F_N; ++i) {
+  for (std::size_t i = 0; i < F_N; ++i) {
     area_now = area[i];
     f0 = F0[i];
     f1 = F1[i];
@@ -1675,8 +1683,6 @@ void GAP::CM() {
 
   backtracking_line_search(position_of_mesh, d, negative_grad, alpha);
 
-  double e1;
-  double s;
   position_of_mesh += alpha * d;
   Energysource();
 }
@@ -1689,7 +1695,7 @@ void GAP::recover_to_src() {
   update_p11 = source_p11;
 }
 
-void GAP::rePre_calculate(int N) {
+void GAP::rePre_calculate(const std::size_t &N) {
   p_solver_i[N].clear();
   p_solver_i[N].reserve(2 * p_V_N[N] + 1);
   p_solver_ia[N].clear();
@@ -1699,42 +1705,46 @@ void GAP::rePre_calculate(int N) {
 
   typedef Eigen::Triplet<int> T;
   std::vector<T> tripletlist;
-  for (int i = 0; i < 2 * p_V_N[N]; i++) {
+  for (std::size_t i = 0; i < 2 * p_V_N[N]; i++) {
     p_solver_ia[N].push_back(p_solver_ja[N].size());
     if (i < p_V_N[N]) {
-      std::vector<int> row_id;
+      std::vector<std::size_t> row_id;
       row_id.push_back(i);
       row_id.push_back(i + p_V_N[N]);
       for (auto &vv : p_VV_ids[N][i]) {
         row_id.push_back(vv);
         row_id.push_back(vv + p_V_N[N]);
       }
-      std::sort(row_id.begin(), row_id.end(), std::less<int>());
-      std::vector<int>::iterator iter =
+      std::sort(row_id.begin(), row_id.end(), std::less<std::size_t>());
+      std::vector<std::size_t>::iterator iter =
           std::find(row_id.begin(), row_id.end(), i);
       int dd = 0;
-      for (int k = std::distance(row_id.begin(), iter); k < row_id.size();
-           k++) {
+      for (std::size_t k = std::distance(row_id.begin(), iter);
+           k < row_id.size(); k++) {
         p_solver_ja[N].push_back(row_id[k]);
         p_solver_i[N].push_back(i);
-        tripletlist.push_back(T(i, row_id[k], dd));
+        tripletlist.push_back(T(static_cast<int>(i),
+                                static_cast<int>(row_id[k]),
+                                static_cast<int>(dd)));
         ++dd;
       }
     } else {
-      std::vector<int> row_id;
+      std::vector<std::size_t> row_id;
       row_id.push_back(i);
       for (auto &vv : p_VV_ids[N][i - p_V_N[N]]) {
         row_id.push_back(vv + p_V_N[N]);
       }
-      std::sort(row_id.begin(), row_id.end(), std::less<int>());
-      std::vector<int>::iterator iter =
+      std::sort(row_id.begin(), row_id.end(), std::less<std::size_t>());
+      std::vector<std::size_t>::iterator iter =
           std::find(row_id.begin(), row_id.end(), i);
       int dd = 0;
-      for (int k = std::distance(row_id.begin(), iter); k < row_id.size();
-           k++) {
+      for (std::size_t k = std::distance(row_id.begin(), iter);
+           k < row_id.size(); k++) {
         p_solver_ja[N].push_back(row_id[k]);
         p_solver_i[N].push_back(i);
-        tripletlist.push_back(T(i, row_id[k], dd));
+        tripletlist.push_back(T(static_cast<int>(i),
+                                static_cast<int>(row_id[k]),
+                                static_cast<int>(dd)));
         ++dd;
       }
     }
@@ -1767,20 +1777,20 @@ void GAP::rePre_calculate(int N) {
   p_id_h45[N].resize(p_F_N[N]);
   p_id_h55[N].resize(p_F_N[N]);
 
-  for (int i = 0; i < p_F_N[N]; i++) {
-    int f0 = p_F0[N][i];
-    int f1 = p_F1[N][i];
-    int f2 = p_F2[N][i];
-    int f3 = p_F0[N][i] + p_V_N[N];
-    int f4 = p_F1[N][i] + p_V_N[N];
-    int f5 = p_F2[N][i] + p_V_N[N];
+  for (std::size_t i = 0; i < p_F_N[N]; i++) {
+    std::size_t f0 = p_F0[N][i];
+    std::size_t f1 = p_F1[N][i];
+    std::size_t f2 = p_F2[N][i];
+    std::size_t f3 = p_F0[N][i] + p_V_N[N];
+    std::size_t f4 = p_F1[N][i] + p_V_N[N];
+    std::size_t f5 = p_F2[N][i] + p_V_N[N];
 
-    int min01 = std::min(f0, f1);
-    int max01 = f0 + f1 - min01;
-    int min02 = std::min(f0, f2);
-    int max02 = f0 + f2 - min02;
-    int min12 = std::min(f1, f2);
-    int max12 = f1 + f2 - min12;
+    std::size_t min01 = std::min(f0, f1);
+    std::size_t max01 = f0 + f1 - min01;
+    std::size_t min02 = std::min(f0, f2);
+    std::size_t max02 = f0 + f2 - min02;
+    std::size_t min12 = std::min(f1, f2);
+    std::size_t max12 = f1 + f2 - min12;
 
     p_id_h00[N][i] = p_solver_ia[N][f0];
     p_id_h01[N][i] =
@@ -1817,7 +1827,7 @@ void GAP::rePre_calculate(int N) {
   }
 }
 
-void GAP::BPE(int N) {
+void GAP::BPE(const std::size_t &N) {
   if (p_solver[N] != NULL) {
     delete p_solver[N];
     p_solver[N] = NULL;
@@ -1929,10 +1939,10 @@ void GAP::BPE(int N) {
   p_solver[N] = NULL;
 }
 
-void GAP::Energysource(int N) {
+void GAP::Energysource(const std::size_t &N) {
   double end_e_one_temp = 0, end_e_area = 0;
 
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det, E_1, E_2;
 
@@ -1941,7 +1951,7 @@ void GAP::Energysource(int N) {
   double q00, q01, q10, q11;
 
   const double *pos = p_position_of_mesh[N].data();
-  for (int i = 0; i < p_F_N[N]; ++i) {
+  for (std::size_t i = 0; i < p_F_N[N]; ++i) {
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
     f2 = p_F2[N][i];
@@ -1971,8 +1981,8 @@ void GAP::Energysource(int N) {
     j11 = p01 * q10 + p11 * q11;
 
     det = j00 * j11 - j01 * j10;
-    if (det <= 0)
-      printf("%s%d\n", "det:", det);
+    // if (det <= 0)
+    //   printf("%s%d\n", "det:", det);
     E_1 = (j00 * j00 + j01 * j01 + j10 * j10 + j11 * j11);
     E_2 = 1.0 / (det * det) * E_1;
 
@@ -1985,7 +1995,7 @@ void GAP::Energysource(int N) {
   p_energy_area[N] = end_e_area;
 }
 
-void GAP::Update_source_same_t(int N) {
+void GAP::Update_source_same_t(const std::size_t &N) {
   double t_min = 1;
   int geqK = 0;
 
@@ -2003,7 +2013,7 @@ void GAP::Update_source_same_t(int N) {
   std::vector<double> all_w11;
   all_w11.resize(p_F_N[N]);
 
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det;
   double E_d;
@@ -2015,7 +2025,7 @@ void GAP::Update_source_same_t(int N) {
 
   double *position = p_position_of_mesh[N].data();
 
-  for (int i = 0; i < p_F_N[N]; ++i) {
+  for (std::size_t i = 0; i < p_F_N[N]; ++i) {
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
     f2 = p_F2[N][i];
@@ -2111,9 +2121,9 @@ void GAP::Update_source_same_t(int N) {
   p_Intp_T_Min[N] = t_min;
 }
 
-void GAP::SLIM(int N) {
+void GAP::SLIM(const std::size_t &N) {
   double area_now;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double j00, j01, j10, j11;
   double p00, p01, p10, p11;
   double q00, q01, q10, q11;
@@ -2139,13 +2149,13 @@ void GAP::SLIM(int N) {
       h25, h33, h34, h35, h44, h45, h55;
   double *position = p_position_of_mesh[N].data();
 
-  int nnz = p_solver_ja[N].size();
+  std::size_t nnz = p_solver_ja[N].size();
   p_solver_a[N].clear();
   p_solver_b[N].clear();
   p_solver_a[N].resize(nnz, 0.0);
   p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
-  for (int i = 0; i < p_F_N[N]; ++i) {
+  for (std::size_t i = 0; i < p_F_N[N]; ++i) {
     area_now = area[i];
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
@@ -2289,7 +2299,7 @@ void GAP::SLIM(int N) {
   std::vector<double> result_d = p_solver[N]->result;
 
   Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
-  for (int i = 0; i < 2 * p_V_N[N]; i++) {
+  for (std::size_t i = 0; i < 2 * p_V_N[N]; i++) {
     negative_grad(i) = p_solver_b[N][i];
     d(i) = result_d[i];
   }
@@ -2305,14 +2315,14 @@ void GAP::SLIM(int N) {
 }
 
 void GAP::max_step(const Eigen::VectorXd &xx, const Eigen::VectorXd &dd,
-                   double &step, int N) {
+                   double &step, const std::size_t &N) {
   double temp_t = std::numeric_limits<double>::infinity();
-  int f0, f1, f2;
-  double a, b, c, b1, b2, tt, tt1, tt2;
+  std::size_t f0, f1, f2;
+  double a, b, c, b1, b2, tt;
   double x0, x1, x2, x3, x4, x5, d0, d1, d2, d3, d4, d5;
   const double *x = xx.data();
   const double *d = dd.data();
-  for (int i = 0; i < F_N; ++i) {
+  for (std::size_t i = 0; i < F_N; ++i) {
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
     f2 = p_F2[N][i];
@@ -2346,7 +2356,7 @@ void GAP::max_step(const Eigen::VectorXd &xx, const Eigen::VectorXd &dd,
 void GAP::backtracking_line_search(const Eigen::VectorXd &x,
                                    const Eigen::VectorXd &d,
                                    const Eigen::VectorXd &negetive_grad,
-                                   double &alpha, int N) {
+                                   double &alpha, const std::size_t &N) {
   double h = 0.5;
   double tt = -(negetive_grad.transpose() * d)(0, 0);
   double c = 0.2;
@@ -2362,16 +2372,17 @@ void GAP::backtracking_line_search(const Eigen::VectorXd &x,
   }
 }
 
-void GAP::Energy(const Eigen::VectorXd &position, double &energyupdate, int N) {
+void GAP::Energy(const Eigen::VectorXd &position, double &energyupdate,
+                 const std::size_t &N) {
   double energy = 0;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double x0, y0, x1, y1, x2, y2;
   double det, E_d;
   double j00, j01, j10, j11;
   double p00, p01, p10, p11;
   double q00, q01, q10, q11;
   const double *pos = position.data();
-  for (int i = 0; i < p_F_N[N]; ++i) {
+  for (std::size_t i = 0; i < p_F_N[N]; ++i) {
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
     f2 = p_F2[N][i];
@@ -2409,9 +2420,9 @@ void GAP::Energy(const Eigen::VectorXd &position, double &energyupdate, int N) {
   energyupdate = energy;
 }
 
-void GAP::CM(int N) {
+void GAP::CM(const std::size_t &N) {
   double area_now;
-  int f0, f1, f2;
+  std::size_t f0, f1, f2;
   double j00, j01, j10, j11;
   double p00, p01, p10, p11;
   double q00, q01, q10, q11;
@@ -2436,13 +2447,13 @@ void GAP::CM(int N) {
   double h00, h01, h02, h03, h04, h05, h11, h12, h13, h14, h15, h22, h23, h24,
       h25, h33, h34, h35, h44, h45, h55;
   double *position = p_position_of_mesh[N].data();
-  int nnz = p_solver_ja[N].size();
+  std::size_t nnz = p_solver_ja[N].size();
   p_solver_a[N].clear();
   p_solver_b[N].clear();
   p_solver_a[N].resize(nnz, 0.0);
   p_solver_b[N].resize(2 * p_V_N[N], 0.0);
 
-  for (int i = 0; i < p_F_N[N]; ++i) {
+  for (std::size_t i = 0; i < p_F_N[N]; ++i) {
     area_now = area[i];
     f0 = p_F0[N][i];
     f1 = p_F1[N][i];
@@ -2664,7 +2675,7 @@ void GAP::CM(int N) {
   std::vector<double> result_d = p_solver[N]->result;
 
   Eigen::VectorXd negative_grad(2 * p_V_N[N]), d(2 * p_V_N[N]);
-  for (int i = 0; i < 2 * p_V_N[N]; i++) {
+  for (std::size_t i = 0; i < 2 * p_V_N[N]; i++) {
     negative_grad(i) = p_solver_b[N][i];
     d(i) = result_d[i];
   }
@@ -2677,14 +2688,11 @@ void GAP::CM(int N) {
   double alpha = 0.95 * temp_t;
 
   backtracking_line_search(p_position_of_mesh[N], d, negative_grad, alpha, N);
-
-  double e1;
-  double s;
   p_position_of_mesh[N] += alpha * d;
   Energysource(N);
 }
 
-void GAP::recover_to_src(int N) {
+void GAP::recover_to_src(const std::size_t &N) {
   area = area_src;
   p_update_p00[N] = p_source_p00[N];
   p_update_p01[N] = p_source_p01[N];

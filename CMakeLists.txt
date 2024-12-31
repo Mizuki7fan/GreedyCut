@@ -20,12 +20,22 @@ else()
     message("本地库目录为: ${MyLib}")
 endif()
 
-find_package(OpenMP REQUIRED)
-if(OPENMP_FOUND)
-    message(STATUS "Find OpenMP")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+#OpenMP设置
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    find_package(OpenMP REQUIRED)
+    if(OPENMP_FOUND)
+        message(STATUS "Find OpenMP")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(OPENMP_PATH "C:\\Program Files\\LLVM\\lib\\clang\\19\\include")
+    set(OPENMP_LIB_PATH "C:\\Program Files\\LLVM\\lib\\libomp.lib")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+#    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+    include_directories(SYSTEM ${OPENMP_PATH})
 endif()
 
 SET(EIGEN_PATH "${MyLib}\\Eigen")
@@ -103,8 +113,11 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${SOLVER_LIBRARY})
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_link_libraries(${PROJECT_NAME} ${OPENMP_LIB_PATH})
+endif()
 
 # 设置编译器标志, 这句话要在target_link_libraries后面
-# if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-#     target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)# /W4 较高的警告等级; /WX 所有警告都被视为错误 /wd4820 屏蔽C4820警告。
-# endif()
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)# /W4 较高的警告等级; /WX 所有警告都被视为错误 /wd4820 屏蔽C4820警告。
+endif()

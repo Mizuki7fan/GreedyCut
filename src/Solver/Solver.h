@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <vector>
 
 class Solver {
@@ -13,13 +14,13 @@ public:
 
   std::vector<double> result;
 
-  std::vector<int> ia;
-  std::vector<int> ja;
+  std::vector<std::size_t> ia;
+  std::vector<std::size_t> ja;
   std::vector<double> a;
   std::vector<double> rhs;
 
-  int nnz;
-  int num;
+  std::size_t nnz;
+  std::size_t num;
 
 protected:
   // pardiso stuff

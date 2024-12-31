@@ -6,6 +6,9 @@
 #include "MeshCut.h"
 #include "PointFinding.h"
 #include "PointSampling.h"
+#include <cstddef>
+#include <ctime>
+#include <format>
 #include <io.h>
 #include <string>
 #include <time.h>
@@ -102,7 +105,8 @@ int main(int argc, char *argv[]) {
 
   std::vector<int> Result = aap.GetResult();
 
-  std::ofstream result("landmark.txt");
+  std::ofstream result("landmark.findvef");
+  result << "V" << std::endl;
   for (auto a : Result) {
     result << a << std::endl;
     printf("%i\n", a);
@@ -115,12 +119,23 @@ int main(int argc, char *argv[]) {
   Mesh CutedMesh3 = MCut3.GetCutedMesh();
   OpenMesh::IO::write_mesh(CutedMesh3, "cuted_mesh.obj");
 
-  std::ofstream cutfile("cut.txt");
+  std::ofstream cutfile("cut_on_original_mesh.findvef");
   std::vector<int> cut;
   cut = MCut3.GetCutedge();
+  cutfile << "VE" << std::endl;
   for (auto a : cut) {
-    cutfile << a << std::endl;
+    cutfile << std::format("{} {}",
+                           mesh.from_vertex_handle(
+                                   mesh.halfedge_handle(mesh.edge_handle(a), 0))
+                               .idx(),
+                           mesh.from_vertex_handle(
+                                   mesh.halfedge_handle(mesh.edge_handle(a), 1))
+                               .idx())
+            << std::endl;
   }
+
+  time_t et = clock();
+  std::cout << "time: " << et - st << std::endl;
 
   printf("finish!");
 }
